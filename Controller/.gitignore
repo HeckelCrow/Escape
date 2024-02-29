@@ -1,0 +1,9 @@
+.vs/
+build/
+out/
+external/
+resources/
+
+*.rdbg
+data/out.txt
+data/in.txt
