@@ -527,8 +527,8 @@ ReceiveMessage(Server& server)
     return msg;
 }
 
-constexpr Duration client_timeout_duration = Milliseconds(5000);
-constexpr Duration heartbeat_period        = Milliseconds(1000);
+constexpr Duration client_timeout_duration = Milliseconds(1200);
+constexpr Duration heartbeat_period        = Milliseconds(700);
 constexpr Duration command_resend_period   = Milliseconds(100);
 
 struct Client
@@ -687,7 +687,7 @@ struct DoorLock
         {
             need_update = true;
         }
-        if (command.lock_tree == last_status.lock_tree)
+        if (command.lock_tree != last_status.lock_tree)
         {
             need_update = true;
         }
@@ -717,6 +717,16 @@ struct DoorLock
     DoorLockStatus  last_status;
 };
 
+template<typename T, typename R>
+Str
+DurationToString(std::chrono::duration<T, R> d)
+{
+    u64 ms  = std::chrono::duration_cast<std::chrono::milliseconds>(d).count();
+    Str str = fmt::format("{:02}:{:02}:{:02}.{:03}", ms / 3'600'000,
+                          ms / 60000 % 60, ms / 1000 % 60, ms % 1000);
+    return str;
+}
+
 int
 main()
 {
@@ -745,6 +755,8 @@ main()
     std::vector<Client> clients((u64)ClientId::IdMax);
 
     DoorLock door_lock;
+
+    auto time_start = Clock::now();
 
     glfwShowWindow(window);
     while (!glfwWindowShouldClose(window))
@@ -787,14 +799,18 @@ main()
 
                 if (!client.connected)
                 {
-                    PrintSuccess("[{}] (new):\n", client_name);
+                    PrintSuccess("{} [{}] (new):\n",
+                                 DurationToString(Clock::now() - time_start),
+                                 client_name);
                     Print("{} port {}\n",
                           message.from.endpoint.address().to_string(),
                           message.from.endpoint.port());
                 }
                 else
                 {
-                    Print("[{}]:\n", client_name);
+                    Print("{} [{}]:\n",
+                          DurationToString(Clock::now() - time_start),
+                          client_name);
                     if (client.connection.endpoint != message.from.endpoint)
                     {
                         PrintWarning(
@@ -848,9 +864,21 @@ main()
                 case MessageType::DoorLockStatus: {
                     DoorLockStatus msg;
                     msg.serialize(message.deserializer);
-                    Print("LockDoorStatus:\n");
-                    // Print("Status {}\n", msg.is_locked ? "Locked" :
-                    // "Unlocked");
+                    Print("   LockDoorStatus:\n");
+                    Print("   Door {}\n",
+                          (msg.lock_door == LockState::Locked) ? "Locked" :
+                          (msg.lock_door == LockState::Open)   ? "Open" :
+                                                                 "SoftLock");
+                    Print("   Tree {}({})\n",
+                          (msg.lock_tree == LatchLockState::Unpowered) ?
+                              "Unpowered" :
+                              "ForceOpen",
+                          msg.last_tree_open_time);
+                    Print("   Cave {}\n",
+                          (msg.lock_cave == LockState::Locked) ? "Locked" :
+                          (msg.lock_cave == LockState::Open)   ? "Open" :
+                                                                 "SoftLock");
+
                     door_lock.last_status = msg;
                 }
                 break;

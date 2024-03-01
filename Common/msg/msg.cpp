@@ -8,6 +8,9 @@ const char* wifi_password = "01234567";
 Connection multicast_connection = {IPAddress(239, 255, 0, 1), 55872};
 Connection server_connection;
 
+u32           time_last_message_received = 0;
+constexpr u32 timeout_period             = 3000;
+
 u8 packet_buffer[udp_packet_size];
 
 enum class WifiState
@@ -146,6 +149,7 @@ ReceiveMessage()
             Serial.print(F(", port "));
             Serial.println(udp.remotePort());
             // Serial.printf("Data : %s\n", packet_buffer);
+            time_last_message_received = millis();
 
             auto          ds = Serializer(SerializerMode::Deserialize,
                                  {packet_buffer, (u32)packet_size});
@@ -200,9 +204,11 @@ ReceiveMessage()
     break;
     case WifiState::Connected:
     {
+        auto t           = millis();
         auto packet_size = udp.parsePacket();
         if (packet_size >= 2)
         {
+            time_last_message_received = t;
             if (packet_size > udp_packet_size)
             {
                 Serial.println(F("Packet too big!"));
@@ -213,6 +219,12 @@ ReceiveMessage()
                 SerializerMode::Deserialize, {packet_buffer, (u32)packet_size});
             message.header.serialize(message.deserializer);
             message.from = {udp.remoteIP(), udp.remotePort()};
+        }
+
+        if (t - time_last_message_received > timeout_period)
+        {
+            udp.stop();
+            wifi_state = WifiState::StartMulticast;
         }
     }
     break;
