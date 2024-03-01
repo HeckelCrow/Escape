@@ -123,11 +123,21 @@ SetCommand(DoorLockCommand cmd)
     {
         latchlock_force_open_time = millis();
         digitalWrite(LATCHLOCK_OUT, HIGH);
+        Serial.println(F("Eject!"));
     }
 
     status.lock_door = cmd.lock_door;
     status.lock_cave = cmd.lock_cave;
     status.lock_tree = cmd.lock_tree;
+
+    if (latchlock_force_open_time)
+    {
+        status.tree_open_duration = millis() - latchlock_force_open_time;
+    }
+    else
+    {
+        status.tree_open_duration = 0;
+    }
 }
 
 void
@@ -143,6 +153,7 @@ loop()
         if (elapsed > latchlock_timeout_retry)
         {
             latchlock_force_open_time = 0;
+            Serial.println(F("Reset!"));
         }
     }
 
@@ -189,7 +200,7 @@ loop()
                               {packet_buffer, udp_packet_size});
 
         status.getHeader(this_client_id).serialize(ser);
-        status.last_tree_open_time = latchlock_force_open_time;
+
         status.serialize(ser);
 
         udp.beginPacket(server_connection.address, server_connection.port);

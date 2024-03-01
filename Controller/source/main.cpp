@@ -613,26 +613,30 @@ DrawLock(const char* name, LockState& cmd, const LockState status)
 }
 
 void
-DrawLatchLock(LatchLockState& cmd, const bool status_locked)
+DrawLatchLock(LatchLockState& cmd, const LatchLockState status,
+              const u32 tree_open_duration)
 {
-    ImGui::BeginDisabled(!status_locked);
+    ImGui::BeginDisabled(tree_open_duration
+                         && tree_open_duration < latchlock_timeout_retry);
     if (ImGui::Button(utf8("Éjecter")))
     {
         cmd = LatchLockState::ForceOpen;
+    }
+
+    ImGui::EndDisabled();
+
+    Vec4f color = ImGui::GetStyle().Colors[ImGuiCol_Text];
+    if ((status != LatchLockState::ForceOpen)
+        && (cmd == LatchLockState::ForceOpen))
+    {
+        color = {0.9f, 0.45f, 0.1f, 1.f};
     }
     else
     {
         cmd = LatchLockState::Unpowered;
     }
-    ImGui::EndDisabled();
 
-    Vec4f color = ImGui::GetStyle().Colors[ImGuiCol_Text];
-    if (status_locked && (cmd == LatchLockState::ForceOpen))
-    {
-        color = {0.9f, 0.45f, 0.1f, 1.f};
-    }
-
-    if (status_locked)
+    if (tree_open_duration == 0)
     {
         ImGui::TextColored(color, utf8(">"));
     }
@@ -668,8 +672,8 @@ struct DoorLock
             DrawLock("hobbit", command.lock_door, last_status.lock_door);
             ImGui::Separator();
             ImGui::Text(utf8("Clef dans l'arbre"));
-            DrawLatchLock(command.lock_tree,
-                          (last_status.last_tree_open_time == 0));
+            DrawLatchLock(command.lock_tree, last_status.lock_tree,
+                          last_status.tree_open_duration);
             ImGui::Separator();
             ImGui::Text(utf8("Grotte"));
             DrawLock("cave", command.lock_cave, last_status.lock_cave);
@@ -869,11 +873,11 @@ main()
                           (msg.lock_door == LockState::Locked) ? "Locked" :
                           (msg.lock_door == LockState::Open)   ? "Open" :
                                                                  "SoftLock");
-                    Print("   Tree {}({})\n",
+                    Print("   Tree {} ({})\n",
                           (msg.lock_tree == LatchLockState::Unpowered) ?
                               "Unpowered" :
                               "ForceOpen",
-                          msg.last_tree_open_time);
+                          msg.tree_open_duration);
                     Print("   Cave {}\n",
                           (msg.lock_cave == LockState::Locked) ? "Locked" :
                           (msg.lock_cave == LockState::Open)   ? "Open" :
