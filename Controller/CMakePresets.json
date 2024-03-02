@@ -7,7 +7,6 @@
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/${presetName}",
       "installDir": "${sourceDir}/install/${presetName}"
-
     },
     {
       "name": "x64-debug",

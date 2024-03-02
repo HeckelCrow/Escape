@@ -3,6 +3,7 @@ build/
 out/
 external/
 resources/
+install/
 
 *.rdbg
 data/out.txt

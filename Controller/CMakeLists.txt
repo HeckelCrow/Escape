@@ -1,4 +1,7 @@
-﻿cmake_minimum_required (VERSION 3.8)
+﻿cmake_minimum_required (VERSION 3.21)
+
+
+set(X_VCPKG_APPLOCAL_DEPS_INSTALL ON)
 
 set (proj_name EscapeGame)
 project (${proj_name} C CXX)
@@ -6,3 +9,15 @@ project (${proj_name} C CXX)
 include_directories(source)
 include_directories("../Common")
 add_subdirectory(source)
+
+install(
+	TARGETS ${proj_name} 
+	DESTINATION ${CMAKE_INSTALL_PREFIX}/${proj_name})
+
+install(
+	DIRECTORY data
+	DESTINATION ${CMAKE_INSTALL_PREFIX}/${proj_name})
+
+set(CMAKE_INSTALL_SYSTEM_RUNTIME_DESTINATION 
+	${CMAKE_INSTALL_PREFIX}/${proj_name})
+include(InstallRequiredSystemLibraries)

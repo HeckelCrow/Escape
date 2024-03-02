@@ -10,6 +10,7 @@ add_executable(${proj_name}
 	print.hpp
 	scope_exit.hpp
 )
+
 #Libs
 find_package(glfw3 CONFIG REQUIRED)
 target_link_libraries(${proj_name} PRIVATE glfw)
@@ -33,7 +34,6 @@ target_link_libraries(${proj_name} PRIVATE asio::asio)
 find_package(glm CONFIG REQUIRED)
 target_include_directories(${proj_name} PRIVATE glm::glm)
 
-
 find_package(Boost REQUIRED)
 target_include_directories(${proj_name} PRIVATE ${Boost_INCLUDE_DIRS})
 
@@ -46,3 +46,5 @@ else()
 endif()
 
 target_compile_definitions(${proj_name} PRIVATE IMGUI_USER_CONFIG="imgui_config.hpp")
+target_compile_definitions(${proj_name} PRIVATE _WIN32_WINNT=_WIN32_WINNT_WIN7)
+
