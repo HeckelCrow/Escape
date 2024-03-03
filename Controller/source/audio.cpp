@@ -6,14 +6,23 @@
 #include <alext.h>
 #include <sndfile.h>
 
+struct Source
+{
+    Source() {}
+    ALuint al_source  = 0;
+    u32    playing_id = 0;
+
+    u32 next_playing_id = 1;
+};
+
 struct Audio
 {
     Audio() {}
     ALCdevice*  device  = nullptr;
     ALCcontext* context = nullptr;
 
-    std::vector<ALuint> free_sources;
-    std::vector<ALuint> used_sources;
+    std::vector<Source> sources;
+    s32                 source_playing_count = 0;
 };
 
 Audio audio;
@@ -53,15 +62,18 @@ InitAudio(u32 source_count)
     alcGetIntegerv(audio.device, ALC_STEREO_SOURCES, 1, &max_source_count);
     Print("Max stereo source count: {}\n", max_source_count);
 
-    auto context = alcCreateContext(audio.device, NULL);
-    if (!alcMakeContextCurrent(context))
+    audio.context = alcCreateContext(audio.device, NULL);
+    if (!alcMakeContextCurrent(audio.context))
     {
         PrintError("alcMakeContextCurrent failed\n");
         return false;
     }
 
-    audio.free_sources.resize(source_count);
-    alGenSources(source_count, audio.free_sources.data());
+    audio.sources.resize(source_count);
+    for (auto& source : audio.sources)
+    {
+        alGenSources(1, &source.al_source);
+    }
 
     return true;
 }
@@ -69,41 +81,46 @@ InitAudio(u32 source_count)
 void
 TerminateAudio()
 {
-    if (audio.free_sources.size())
+    if (audio.sources.size())
     {
-        alDeleteSources(audio.free_sources.size(), audio.free_sources.data());
-        audio.free_sources.clear();
-    }
-    if (audio.used_sources.size())
-    {
-        alDeleteSources(audio.used_sources.size(), audio.used_sources.data());
-        audio.used_sources.clear();
-    }
-    if (audio.device)
-    {
-        alcCloseDevice(audio.device);
+        for (auto& source : audio.sources)
+        {
+            alDeleteSources(1, &source.al_source);
+        }
+        audio.sources.clear();
     }
     if (audio.context)
     {
         alcMakeContextCurrent(NULL);
         alcDestroyContext(audio.context);
     }
+    if (audio.device)
+    {
+        alcCloseDevice(audio.device);
+    }
 }
 
 void
 UpdateAudio()
 {
-    for (auto it = audio.used_sources.begin(); it != audio.used_sources.end();)
+    s32 highest_playing_index = -1;
+    for (s32 i = 0; i < audio.source_playing_count; i++)
     {
-        ALenum state;
-        alGetSourcei(*it, AL_SOURCE_STATE, &state);
+        s32     index  = audio.source_playing_count - i - 1;
+        Source& source = audio.sources[index];
 
-        if (state != AL_PLAYING)
+        ALenum state;
+        alGetSourcei(source.al_source, AL_SOURCE_STATE, &state);
+
+        if (state == AL_PLAYING)
         {
-            // Paused or stopped
-            audio.free_sources.push_back(*it);
-            it = audio.used_sources.erase(it);
-            continue;
+            highest_playing_index = std::max(highest_playing_index, index);
+        }
+        else if (source.playing_id)
+        {
+            // Just got paused or stopped
+            source.playing_id = 0;
+            alSourcei(source.al_source, AL_BUFFER, NULL);
         }
 
         auto err = alGetError();
@@ -111,9 +128,8 @@ UpdateAudio()
         {
             PrintError("OpenAL Error: {}\n", alGetString(err));
         }
-
-        it++;
     }
+    audio.source_playing_count = highest_playing_index + 1;
 }
 
 AudioBuffer
@@ -175,9 +191,9 @@ LoadAudioFile(const Path& path)
         return {};
     }
 
-    alGenBuffers(1, &buffer.buffer);
-    alBufferData(buffer.buffer, format, audio_buffer.data(),
-                 audio_buffer.size() * sizeof(f32), sfinfo.samplerate);
+    alGenBuffers(1, &buffer.al_buffer);
+    alBufferData(buffer.al_buffer, format, audio_buffer.data(),
+                 (ALsizei)audio_buffer.size() * sizeof(f32), sfinfo.samplerate);
 
     audio_buffer.clear();
     audio_buffer.shrink_to_fit();
@@ -202,29 +218,73 @@ LoadAudioFile(const Path& path)
 void
 DestroyAudioBuffer(AudioBuffer& buffer)
 {
-    if (buffer.buffer && alIsBuffer(buffer.buffer))
+    if (buffer.al_buffer && alIsBuffer(buffer.al_buffer))
     {
-        alDeleteBuffers(1, &buffer.buffer);
-        buffer.buffer = 0;
+        // TODO: Is this too slow? Does it matter?
+        for (auto& source : audio.sources)
+        {
+            if (source.playing_id)
+            {
+                ALint buffer_playing = 0;
+                alGetSourcei(source.al_source, AL_BUFFER, &buffer_playing);
+                if (buffer_playing == buffer.al_buffer)
+                {
+                    alSourceStop(source.al_source);
+                    alSourcei(source.al_source, AL_BUFFER, NULL);
+                }
+            }
+        }
+        alDeleteBuffers(1, &buffer.al_buffer);
+        buffer.al_buffer = 0;
     }
 }
 
-AudioPlayer
-PlayAudio(AudioBuffer buffer)
+AudioPlaying
+PlayAudio(const AudioBuffer& buffer)
 {
-    AudioPlayer player = {};
-    if (audio.free_sources.empty())
+    AudioPlaying playing = {};
+
+    for (s32 i = 0; i < (s32)audio.sources.size(); i++)
     {
-        PrintError("No free source available\n");
-        return player;
+        auto& source = audio.sources[i];
+        if (source.playing_id == 0)
+        {
+            // This source is free
+            playing.source_index = i;
+            break;
+        }
     }
 
-    player.source = audio.free_sources.back();
-    audio.used_sources.push_back(player.source);
-    audio.free_sources.pop_back();
+    if (playing.source_index == -1)
+    {
+        PrintError("No free source available\n");
+        return playing;
+    }
 
-    alSourcei(player.source, AL_BUFFER, (ALint)buffer.buffer);
-    alSourcePlay(player.source);
+    auto& source       = audio.sources[playing.source_index];
+    playing.playing_id = source.next_playing_id++;
+    if (!source.next_playing_id)
+        source.next_playing_id++;
+    source.playing_id = playing.playing_id;
 
-    return player;
+    audio.source_playing_count =
+        std::max(audio.source_playing_count, playing.source_index + 1);
+
+    Print("Playing buffer {} on source {} (id {})\n", buffer.al_buffer,
+          source.al_source, playing.playing_id);
+    alSourcei(source.al_source, AL_BUFFER, (ALint)buffer.al_buffer);
+    alSourcePlay(source.al_source);
+
+    return playing;
+}
+
+void
+StopAudio(AudioPlaying playing)
+{
+    const auto& source = audio.sources[playing.source_index];
+
+    if (source.playing_id == playing.playing_id)
+    {
+        alSourceStop(source.al_source);
+    }
 }

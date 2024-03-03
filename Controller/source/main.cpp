@@ -764,8 +764,19 @@ main()
     InitAudio(32);
     SCOPE_EXIT({ TerminateAudio(); });
 
-    auto orc_01 = LoadAudioFile("resources/Orc_000.ogg");
-    SCOPE_EXIT({ DestroyAudioBuffer(orc_01); });
+    std::vector<AudioBuffer> orcs;
+
+    for (auto const& dir_entry :
+         std::filesystem::directory_iterator{"resources/Orcs/"})
+    {
+        Print("Loading {}\n", dir_entry.path().string());
+        orcs.push_back(LoadAudioFile(dir_entry.path()));
+    }
+
+    SCOPE_EXIT({
+        for (auto& orc : orcs)
+            DestroyAudioBuffer(orc);
+    });
 
     auto time_start = Clock::now();
     glfwShowWindow(window);
@@ -804,7 +815,9 @@ main()
         {
             if (ImGui::Button("Play!"))
             {
-                auto player = PlayAudio(orc_01);
+                u32 rand_index = rand() % orcs.size();
+                Print("Playing orcs[{}]\n", rand_index);
+                auto player = PlayAudio(orcs[rand_index]);
             }
         }
         ImGui::End();

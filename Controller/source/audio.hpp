@@ -9,17 +9,18 @@ void UpdateAudio();
 struct AudioBuffer
 {
     AudioBuffer() {}
-    u32 buffer = 0;
+    u32 al_buffer = 0;
 };
 
 AudioBuffer LoadAudioFile(const Path& path);
 void        DestroyAudioBuffer(AudioBuffer& buffer);
 
-struct AudioPlayer
+struct AudioPlaying
 {
-    AudioPlayer() {}
-    u32 buffer = 0;
-    u32 source = 0;
+    AudioPlaying() {}
+    s32 source_index = -1;
+    u32 playing_id   = 0;
 };
 
-AudioPlayer PlayAudio(AudioBuffer buffer);
+AudioPlaying PlayAudio(const AudioBuffer& buffer);
+void         StopAudio(AudioPlaying playing);
