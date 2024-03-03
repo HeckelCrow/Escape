@@ -30,6 +30,12 @@ target_link_libraries(${proj_name} PRIVATE imgui::imgui)
 find_package(asio CONFIG REQUIRED)
 target_link_libraries(${proj_name} PRIVATE asio::asio)
 
+find_package(OpenAL CONFIG REQUIRED)
+target_link_libraries(${proj_name} PRIVATE OpenAL::OpenAL)
+
+find_package(sndfile CONFIG REQUIRED)
+target_link_libraries(${proj_name} PRIVATE SndFile::sndfile)
+
 #Header only
 find_package(glm CONFIG REQUIRED)
 target_include_directories(${proj_name} PRIVATE glm::glm)

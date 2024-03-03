@@ -1,5 +1,4 @@
-﻿cmake_minimum_required (VERSION 3.21)
-
+﻿cmake_minimum_required (VERSION 3.25)
 
 set(X_VCPKG_APPLOCAL_DEPS_INSTALL ON)
 
