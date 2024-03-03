@@ -5,6 +5,8 @@ add_executable(${proj_name}
 	glad/glad.h
 
 	alias.hpp
+	audio.cpp
+	audio.hpp
 	imgui_config.hpp
 	main.cpp
 	print.hpp

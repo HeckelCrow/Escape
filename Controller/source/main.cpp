@@ -1,6 +1,7 @@
 ﻿#include "alias.hpp"
 #include "print.hpp"
 #include "scope_exit.hpp"
+#include "audio.hpp"
 
 #define utf8(s) (char*)u8##s
 #include <asio.hpp>
@@ -17,10 +18,6 @@
 #include <imgui_impl_glfw.h>
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
-
-#include <al.h>
-#include <alext.h>
-#include <sndfile.h>
 
 #include <span>
 #include <chrono>
@@ -764,181 +761,11 @@ main()
     std::vector<Client> clients((u64)ClientId::IdMax);
     DoorLock            door_lock;
 
-    {
-        SF_FORMAT_INFO info;
-        SF_INFO        sfinfo;
-        int            format, major_count, subtype_count, m, s;
+    InitAudio(32);
+    SCOPE_EXIT({ TerminateAudio(); });
 
-        memset(&sfinfo, 0, sizeof(sfinfo));
-        printf("Version : %s\n\n", sf_version_string());
-
-        sf_command(NULL, SFC_GET_FORMAT_MAJOR_COUNT, &major_count, sizeof(int));
-        sf_command(NULL, SFC_GET_FORMAT_SUBTYPE_COUNT, &subtype_count,
-                   sizeof(int));
-
-        sfinfo.channels = 1;
-        for (m = 0; m < major_count; m++)
-        {
-            info.format = m;
-            sf_command(NULL, SFC_GET_FORMAT_MAJOR, &info, sizeof(info));
-            printf("%s  (extension \"%s\")\n", info.name, info.extension);
-
-            format = info.format;
-
-            for (s = 0; s < subtype_count; s++)
-            {
-                info.format = s;
-                sf_command(NULL, SFC_GET_FORMAT_SUBTYPE, &info, sizeof(info));
-
-                format = (format & SF_FORMAT_TYPEMASK) | info.format;
-
-                sfinfo.format = format;
-                if (sf_format_check(&sfinfo))
-                    printf("   %s\n", info.name);
-            };
-            puts("");
-        };
-        puts("");
-    }
-
-    auto enumeration = alcIsExtensionPresent(NULL, "ALC_ENUMERATION_EXT");
-    if (enumeration)
-    {
-        auto device_names = alcGetString(NULL, ALC_DEVICE_SPECIFIER);
-        Print("Devices:\n");
-
-        auto curr = device_names;
-        while (curr && *curr != '\0')
-        {
-            StrPtr name = curr;
-            curr += name.size() + 1;
-            Print("{}\n", name);
-        }
-    }
-
-    auto device = alcOpenDevice(NULL);
-    if (!device)
-    {
-        PrintError("alcOpenDevice failed\n");
-        return -1;
-    }
-
-    ALCint max_source_count = 0;
-    alcGetIntegerv(device, ALC_MONO_SOURCES, 1, &max_source_count);
-    Print("Max mono source count: {}\n", max_source_count);
-
-    max_source_count = 0;
-    alcGetIntegerv(device, ALC_STEREO_SOURCES, 1, &max_source_count);
-    Print("Max stereo source count: {}\n", max_source_count);
-
-    auto context = alcCreateContext(device, NULL);
-    if (!alcMakeContextCurrent(context))
-    {
-        PrintError("alcMakeContextCurrent failed\n");
-    }
-
-    SCOPE_EXIT({
-        auto ctx = alcGetCurrentContext();
-        if (ctx == NULL)
-            return;
-
-        device = alcGetContextsDevice(ctx);
-
-        alcMakeContextCurrent(NULL);
-        alcDestroyContext(ctx);
-        alcCloseDevice(device);
-    });
-
-    const char* filename = "data/test.ogg";
-    SF_INFO     sfinfo;
-    auto        sndfile = sf_open(filename, SFM_READ, &sfinfo);
-
-    if (!sndfile)
-    {
-        PrintError("Could not open audio in {}: {}\n", filename,
-                   sf_strerror(sndfile));
-    }
-
-    SCOPE_EXIT({ sf_close(sndfile); });
-
-    if (sfinfo.frames < 1)
-    {
-        PrintError("Bad sample count in {} ({})\n", filename, sfinfo.frames);
-        return 0;
-    }
-
-    if (!alIsExtensionPresent("AL_EXT_FLOAT32"))
-    {
-        PrintError("AL_EXT_FLOAT32 extension not present\n");
-        return 0;
-    }
-    ALint splblockalign  = 1;
-    ALint byteblockalign = sfinfo.channels * 4;
-    auto  format         = AL_NONE;
-
-    if (sfinfo.channels == 1)
-    {
-        format = AL_FORMAT_MONO_FLOAT32;
-    }
-    else if (sfinfo.channels == 2)
-    {
-        format = AL_FORMAT_STEREO_FLOAT32;
-    }
-
-    if (sfinfo.frames / splblockalign > (sf_count_t)(INT_MAX / byteblockalign))
-    {
-        PrintError("Too many samples in {} ({})\n", filename, sfinfo.frames);
-        return 0;
-    }
-
-    std::vector<f32> audio_buffer;
-    audio_buffer.resize(sfinfo.channels * sfinfo.frames);
-
-    auto num_frames =
-        sf_readf_float(sndfile, audio_buffer.data(), sfinfo.frames);
-
-    if (num_frames < 1)
-    {
-        PrintError("Failed to read samples in {} ({})\n", filename, num_frames);
-        return 0;
-    }
-
-    ALuint buffer = 0;
-    alGenBuffers(1, &buffer);
-    alBufferData(buffer, format, audio_buffer.data(),
-                 audio_buffer.size() * sizeof(f32), sfinfo.samplerate);
-    SCOPE_EXIT({
-        if (buffer && alIsBuffer(buffer))
-            alDeleteBuffers(1, &buffer);
-    });
-
-    audio_buffer.clear();
-    audio_buffer.shrink_to_fit();
-
-    auto err = alGetError();
-    if (err != AL_NO_ERROR)
-    {
-        PrintError("OpenAL Error: {}\n", alGetString(err));
-        return 0;
-    }
-
-    ALuint source = 0;
-    alGenSources(1, &source);
-    alSourcei(source, AL_BUFFER, (ALint)buffer);
-
-    SCOPE_EXIT({
-        if (source)
-            alDeleteSources(1, &source);
-    });
-
-    err = alGetError();
-    if (err != AL_NO_ERROR)
-    {
-        PrintError("OpenAL Error: {}\n", alGetString(err));
-        return 0;
-    }
-
-    alSourcePlay(source);
+    auto orc_01 = LoadAudioFile("resources/Orc_000.ogg");
+    SCOPE_EXIT({ DestroyAudioBuffer(orc_01); });
 
     auto time_start = Clock::now();
     glfwShowWindow(window);
@@ -969,7 +796,18 @@ main()
         glfwPollEvents();
         ImguiStartFrame();
 
+        UpdateAudio();
+
         ImGui::ShowDemoWindow();
+
+        if (ImGui::Begin("Audio"))
+        {
+            if (ImGui::Button("Play!"))
+            {
+                auto player = PlayAudio(orc_01);
+            }
+        }
+        ImGui::End();
 
         while (true)
         {
