@@ -30,12 +30,12 @@ struct DoorLockCommand
     serialize(Serializer& s)
     {
         Serialize(lock_door, s);
-        Serialize(lock_cave, s);
+        Serialize(lock_mordor, s);
         Serialize(lock_tree, s);
     }
-    LockState      lock_door = LockState::Open;
-    LockState      lock_cave = LockState::Open;
-    LatchLockState lock_tree = LatchLockState::Unpowered;
+    LockState      lock_door   = LockState::Open;
+    LockState      lock_mordor = LockState::Open;
+    LatchLockState lock_tree   = LatchLockState::Unpowered;
 };
 
 struct DoorLockStatus
@@ -51,13 +51,13 @@ struct DoorLockStatus
     serialize(Serializer& s)
     {
         Serialize(lock_door, s);
-        Serialize(lock_cave, s);
+        Serialize(lock_mordor, s);
         Serialize(lock_tree, s);
         Serialize(tree_open_duration, s);
     }
 
-    LockState lock_door = LockState::Open;
-    LockState lock_cave = LockState::Open;
+    LockState lock_door   = LockState::Open;
+    LockState lock_mordor = LockState::Open;
     // tree_open_duration goes up to latchlock_timeout_retry even if lock_tree
     // is set to Unpowered
     LatchLockState lock_tree          = LatchLockState::Unpowered;

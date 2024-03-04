@@ -5,9 +5,9 @@
 
 ClientId this_client_id = ClientId::DoorLock;
 
-constexpr u8 MAGLOCK_DOOR  = 32;
-constexpr u8 MAGLOCK_CAVE  = 33;
-constexpr u8 LATCHLOCK_OUT = 25; // Latch with button in series
+constexpr u8 MAGLOCK_DOOR   = 32;
+constexpr u8 MAGLOCK_MORDOR = 33;
+constexpr u8 LATCHLOCK_OUT  = 25; // Latch with button in series
 
 DoorLockStatus status;
 
@@ -25,8 +25,8 @@ setup()
     pinMode(MAGLOCK_DOOR, OUTPUT);
     digitalWrite(MAGLOCK_DOOR, 0);
 
-    pinMode(MAGLOCK_CAVE, OUTPUT);
-    digitalWrite(MAGLOCK_CAVE, 0);
+    pinMode(MAGLOCK_MORDOR, OUTPUT);
+    digitalWrite(MAGLOCK_MORDOR, 0);
 
     pinMode(LATCHLOCK_OUT, OUTPUT);
     digitalWrite(LATCHLOCK_OUT, 0);
@@ -96,25 +96,25 @@ SetCommand(DoorLockCommand cmd)
         digitalWrite(MAGLOCK_DOOR, (cmd.lock_door == LockState::Locked));
     }
     channel = 1;
-    if (cmd.lock_cave == LockState::SoftLock)
+    if (cmd.lock_mordor == LockState::SoftLock)
     {
-        if (status.lock_cave != LockState::SoftLock)
+        if (status.lock_mordor != LockState::SoftLock)
         {
             time_start_note[channel] = millis();
             curr_note[channel]       = 0;
             ledcChangeFrequency(channel, notes[curr_note[channel]].f, 8);
             ledcWrite(channel, silent_dutycycle);
-            ledcAttachPin(MAGLOCK_CAVE, channel);
+            ledcAttachPin(MAGLOCK_MORDOR, channel);
         }
     }
     else
     {
-        if (status.lock_cave == LockState::SoftLock)
+        if (status.lock_mordor == LockState::SoftLock)
         {
-            ledcDetachPin(MAGLOCK_CAVE);
+            ledcDetachPin(MAGLOCK_MORDOR);
             time_start_note[channel] = 0;
         }
-        digitalWrite(MAGLOCK_CAVE, (cmd.lock_cave == LockState::Locked));
+        digitalWrite(MAGLOCK_MORDOR, (cmd.lock_mordor == LockState::Locked));
     }
 
     u32 elapsed = millis() - latchlock_force_open_time;
@@ -126,9 +126,9 @@ SetCommand(DoorLockCommand cmd)
         Serial.println(F("Eject!"));
     }
 
-    status.lock_door = cmd.lock_door;
-    status.lock_cave = cmd.lock_cave;
-    status.lock_tree = cmd.lock_tree;
+    status.lock_door   = cmd.lock_door;
+    status.lock_mordor = cmd.lock_mordor;
+    status.lock_tree   = cmd.lock_tree;
 
     if (latchlock_force_open_time)
     {
@@ -212,7 +212,7 @@ loop()
     case MessageType::Reset:
     {
         digitalWrite(MAGLOCK_DOOR, 0);
-        digitalWrite(MAGLOCK_CAVE, 0);
+        digitalWrite(MAGLOCK_MORDOR, 0);
         digitalWrite(LATCHLOCK_OUT, 0);
         ESP.restart();
     }

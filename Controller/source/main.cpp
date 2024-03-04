@@ -679,8 +679,8 @@ struct DoorLock
             DrawLatchLock(command.lock_tree, last_status.lock_tree,
                           last_status.tree_open_duration);
             ImGui::Separator();
-            ImGui::Text(utf8("Grotte"));
-            DrawLock("cave", command.lock_cave, last_status.lock_cave);
+            ImGui::Text(utf8("Mordor"));
+            DrawLock("mordor", command.lock_mordor, last_status.lock_mordor);
 
             // ImGui::EndDisabled();
         }
@@ -691,7 +691,7 @@ struct DoorLock
         {
             need_update = true;
         }
-        if (command.lock_cave != last_status.lock_cave)
+        if (command.lock_mordor != last_status.lock_mordor)
         {
             need_update = true;
         }
@@ -1060,10 +1060,10 @@ main()
                               "Unpowered" :
                               "ForceOpen",
                           msg.tree_open_duration);
-                    Print("   Cave {}\n",
-                          (msg.lock_cave == LockState::Locked) ? "Locked" :
-                          (msg.lock_cave == LockState::Open)   ? "Open" :
-                                                                 "SoftLock");
+                    Print("   mordor {}\n",
+                          (msg.lock_mordor == LockState::Locked) ? "Locked" :
+                          (msg.lock_mordor == LockState::Open)   ? "Open" :
+                                                                   "SoftLock");
 
                     door_lock.last_status = msg;
                 }
