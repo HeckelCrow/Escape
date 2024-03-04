@@ -768,8 +768,6 @@ main()
     AudioPlaying             music_playing;
     AudioPlaying             prev_music_playing;
 
-    std::vector<AudioBuffer> orcs;
-
     for (auto const& dir_entry :
          std::filesystem::directory_iterator{"data/musics/"})
     {
@@ -777,11 +775,36 @@ main()
         musics.push_back(LoadAudioFile(dir_entry.path(), true));
     }
 
+    std::vector<AudioBuffer> orcs;
     for (auto const& dir_entry :
-         std::filesystem::directory_iterator{"data/orcs/"})
+         std::filesystem::directory_iterator{"data/orc/"})
     {
         Print("Loading {}\n", dir_entry.path().string());
         orcs.push_back(LoadAudioFile(dir_entry.path()));
+    }
+
+    std::vector<AudioBuffer> orc_deaths;
+    for (auto const& dir_entry :
+         std::filesystem::directory_iterator{"data/orc_death/"})
+    {
+        Print("Loading {}\n", dir_entry.path().string());
+        orc_deaths.push_back(LoadAudioFile(dir_entry.path()));
+    }
+
+    std::vector<AudioBuffer> orc_hurts;
+    for (auto const& dir_entry :
+         std::filesystem::directory_iterator{"data/orc_hurt/"})
+    {
+        Print("Loading {}\n", dir_entry.path().string());
+        orc_hurts.push_back(LoadAudioFile(dir_entry.path()));
+    }
+
+    std::vector<AudioBuffer> orc_mads;
+    for (auto const& dir_entry :
+         std::filesystem::directory_iterator{"data/orc_mad/"})
+    {
+        Print("Loading {}\n", dir_entry.path().string());
+        orc_mads.push_back(LoadAudioFile(dir_entry.path()));
     }
 
     SCOPE_EXIT({
@@ -824,19 +847,47 @@ main()
 
         if (ImGui::Begin("Audio"))
         {
-            if (ImGui::Button("Play!"))
+            static s32 gain_orcs = 100;
+            ImGui::SliderInt(utf8("Volume orques"), &gain_orcs, 0, 100);
+
+            if (ImGui::Button(utf8("Orque!")))
             {
-                u32 rand_index = rand() % orcs.size();
-                // Print("Playing {}\n",
-                //       orcs[rand_index].path.filename().string());
-                auto player = PlayAudio(orcs[rand_index]);
+                u32  rand_index = rand() % orcs.size();
+                auto player     = PlayAudio(orcs[rand_index]);
+                SetGain(player, gain_orcs / 100.f);
+            }
+
+            if (ImGui::Button(utf8("Orque blessé!")))
+            {
+                u32  rand_index = rand() % orc_hurts.size();
+                auto player     = PlayAudio(orc_hurts[rand_index]);
+                SetGain(player, gain_orcs / 100.f);
+            }
+
+            if (ImGui::Button(utf8("Orque enervé!")))
+            {
+                u32  rand_index = rand() % orc_mads.size();
+                auto player     = PlayAudio(orc_mads[rand_index]);
+                SetGain(player, gain_orcs / 100.f);
+            }
+
+            if (ImGui::Button(utf8("Orque mort!")))
+            {
+                u32  rand_index = rand() % orc_deaths.size();
+                auto player     = PlayAudio(orc_deaths[rand_index]);
+                SetGain(player, gain_orcs / 100.f);
+            }
+
+            static s32 gain_music = 100;
+            if (ImGui::SliderInt(utf8("Volume musique"), &gain_music, 0, 100))
+            {
+                SetGain(music_playing, gain_music / 100.f);
             }
 
             for (auto& music : musics)
             {
                 if (ImGui::Button(music.path.filename().string().c_str()))
                 {
-                    // Print("Playing {}\n", music.path.filename().string());
                     prev_music_playing = music_playing;
                     music_playing      = PlayAudio(music);
                     StopAudio(prev_music_playing);

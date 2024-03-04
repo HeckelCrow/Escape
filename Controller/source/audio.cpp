@@ -331,6 +331,23 @@ StopAudio(AudioPlaying& playing)
     }
 }
 
+void
+SetGain(AudioPlaying playing, f32 gain)
+{
+    if (playing.source_index < 0
+        || playing.source_index >= audio.sources.size())
+    {
+        return;
+    }
+    auto& source = audio.sources[playing.source_index];
+    if (source.playing_id == playing.playing_id)
+    {
+        gain = gain * gain;
+
+        alSourcef(source.al_source, AL_GAIN, gain);
+    }
+}
+
 bool
 InitAudio(u32 source_count)
 {
