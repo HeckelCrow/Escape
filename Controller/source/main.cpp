@@ -764,10 +764,21 @@ main()
     InitAudio(32);
     SCOPE_EXIT({ TerminateAudio(); });
 
+    std::vector<AudioBuffer> musics;
+    AudioPlaying             music_playing;
+    AudioPlaying             prev_music_playing;
+
     std::vector<AudioBuffer> orcs;
 
     for (auto const& dir_entry :
-         std::filesystem::directory_iterator{"resources/Orcs/"})
+         std::filesystem::directory_iterator{"data/musics/"})
+    {
+        Print("Loading {}\n", dir_entry.path().string());
+        musics.push_back(LoadAudioFile(dir_entry.path(), true));
+    }
+
+    for (auto const& dir_entry :
+         std::filesystem::directory_iterator{"data/orcs/"})
     {
         Print("Loading {}\n", dir_entry.path().string());
         orcs.push_back(LoadAudioFile(dir_entry.path()));
@@ -816,8 +827,27 @@ main()
             if (ImGui::Button("Play!"))
             {
                 u32 rand_index = rand() % orcs.size();
-                Print("Playing orcs[{}]\n", rand_index);
+                // Print("Playing {}\n",
+                //       orcs[rand_index].path.filename().string());
                 auto player = PlayAudio(orcs[rand_index]);
+            }
+
+            for (auto& music : musics)
+            {
+                if (ImGui::Button(music.path.filename().string().c_str()))
+                {
+                    // Print("Playing {}\n", music.path.filename().string());
+                    prev_music_playing = music_playing;
+                    music_playing      = PlayAudio(music);
+                    StopAudio(prev_music_playing);
+                }
+            }
+            if (music_playing.source_index != -1)
+            {
+                if (ImGui::Button("Stop"))
+                {
+                    StopAudio(music_playing);
+                }
             }
         }
         ImGui::End();

@@ -1,18 +1,17 @@
 #pragma once
 #include "alias.hpp"
 
-bool InitAudio(u32 source_count);
-void TerminateAudio();
-
-void UpdateAudio();
-
 struct AudioBuffer
 {
     AudioBuffer() {}
+    Path path;
+    bool streaming = false;
+
+    // Pre loaded:
     u32 al_buffer = 0;
 };
 
-AudioBuffer LoadAudioFile(const Path& path);
+AudioBuffer LoadAudioFile(const Path& path, bool streaming = false);
 void        DestroyAudioBuffer(AudioBuffer& buffer);
 
 struct AudioPlaying
@@ -23,4 +22,9 @@ struct AudioPlaying
 };
 
 AudioPlaying PlayAudio(const AudioBuffer& buffer);
-void         StopAudio(AudioPlaying playing);
+void         StopAudio(AudioPlaying& playing);
+
+bool InitAudio(u32 source_count);
+void TerminateAudio();
+
+void UpdateAudio();
