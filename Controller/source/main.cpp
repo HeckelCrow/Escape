@@ -36,6 +36,7 @@ struct Connection
 
 #include "msg/message_format.hpp"
 #include "msg/message_door_lock.hpp"
+#include "msg/message_targets.hpp"
 
 using Clock     = std::chrono::high_resolution_clock;
 using Timepoint = std::chrono::time_point<Clock>;
@@ -44,8 +45,7 @@ using Duration  = std::chrono::microseconds;
 ClientId this_client_id = ClientId::Server;
 
 const char* client_names[(u32)ClientId::IdMax] = {
-    "Invalid",      "Server", "Door Lock", "Key in Tree",
-    "Cave Buttons", "Rings",  "Targets"};
+    "Invalid", "Server", "Door Lock", "Rings", "Targets"};
 
 constexpr Duration
 Microseconds(u64 t)
@@ -650,6 +650,8 @@ DrawLatchLock(LatchLockState& cmd, const LatchLockState status,
 
 struct DoorLock
 {
+    DoorLock() {}
+
     void
     update(Client& client)
     {
@@ -668,7 +670,7 @@ struct DoorLock
             }
             ImGui::Separator();
 
-            ImGui::BeginDisabled(!client.connected);
+            // ImGui::BeginDisabled(!client.connected);
 
             ImGui::Text(utf8("Porte Hobbit"));
             DrawLock("hobbit", command.lock_door, last_status.lock_door);
@@ -680,7 +682,7 @@ struct DoorLock
             ImGui::Text(utf8("Grotte"));
             DrawLock("cave", command.lock_cave, last_status.lock_cave);
 
-            ImGui::EndDisabled();
+            // ImGui::EndDisabled();
         }
         ImGui::End();
 
@@ -723,6 +725,69 @@ struct DoorLock
     DoorLockStatus  last_status;
 };
 
+struct Targets
+{
+    Targets() {}
+
+    void
+    update(Client& client)
+    {
+        if (ImGui::Begin(utf8("Orques")))
+        {
+            ImGui::Text(utf8("Orques"));
+            ImGui::SameLine();
+            if (client.connected)
+            {
+                ImGui::TextColored({0.1f, 0.9f, 0.1f, 1.f}, utf8("(Connecté)"));
+            }
+            else
+            {
+                ImGui::TextColored({0.9f, 0.1f, 0.1f, 1.f},
+                                   utf8("(Déconnecté)"));
+            }
+            ImGui::Separator();
+
+            ImGui::Text(utf8("Orque 01"));
+            ImGui::Separator();
+            ImGui::Text(utf8("Orque 02"));
+            ImGui::Separator();
+            ImGui::Text(utf8("Orque 03"));
+            ImGui::Separator();
+            ImGui::Text(utf8("Orque 04"));
+        }
+        ImGui::End();
+
+        bool need_update = false;
+        if (command.enable != last_status.enabled)
+        {
+            need_update = true;
+        }
+
+        if (client.connection.socket)
+        {
+            if (need_update || client.heartbeatTimeout())
+            {
+                if (client.resendTimeout())
+                {
+                    client.time_command_sent = Clock::now();
+
+                    std::vector<u8> buffer(udp_packet_size);
+                    Serializer      serializer(SerializerMode::Serialize,
+                                               {buffer.data(), (u32)buffer.size()});
+
+                    command.getHeader(ClientId::Server).serialize(serializer);
+                    command.serialize(serializer);
+
+                    SendPacket(client.connection, serializer);
+                }
+            }
+        }
+    }
+
+    TargetsCommand command;
+    TargetsStatus  last_status;
+};
+
 template<typename T, typename R>
 Str
 DurationToString(std::chrono::duration<T, R> d)
@@ -760,6 +825,7 @@ main()
 
     std::vector<Client> clients((u64)ClientId::IdMax);
     DoorLock            door_lock;
+    Targets             targets;
 
     InitAudio(32);
     SCOPE_EXIT({ TerminateAudio(); });
@@ -1003,6 +1069,22 @@ main()
                 }
                 break;
 
+                case MessageType::TargetsCommand: {
+                    PrintWarning("Server received a TargetsCommand message\n");
+                    TargetsCommand msg;
+                    msg.serialize(message.deserializer);
+                }
+                break;
+                case MessageType::TargetsStatus: {
+                    TargetsStatus msg;
+                    msg.serialize(message.deserializer);
+                    Print("   LockDoorStatus:\n");
+                    Print("   Enabled {}\n", msg.enabled);
+
+                    targets.last_status = msg;
+                }
+                break;
+
                 default: {
                     PrintWarning("Message type {}\n", (u32)message.header.type);
                 }
@@ -1024,6 +1106,7 @@ main()
             switch (client_id)
             {
             case ClientId::DoorLock: door_lock.update(client); break;
+            case ClientId::Targets: targets.update(client); break;
             default: break;
             }
 

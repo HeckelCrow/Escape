@@ -8,8 +8,6 @@ enum class ClientId : u8
     Server,
 
     DoorLock,
-    KeyInTree,
-    CaveButtons,
     Rings,
     Targets,
 
@@ -28,6 +26,10 @@ enum class MessageType : u8
     // message_door_lock.hpp
     DoorLockCommand = 20,
     DoorLockStatus,
+
+    // message_targets.hpp
+    TargetsCommand = 30,
+    TargetsStatus,
 
     MessageTypeMax // Last
 };
@@ -74,11 +76,11 @@ struct Serializer
         }
     }
 
-    SerializerMode mode;
+    SerializerMode mode = SerializerMode::Serialize;
     BufferPtr      full_buffer;
     BufferPtr      buffer;
 
-    void (*write)(BufferPtr buffer, Serializer& s);
+    void (*write)(BufferPtr buffer, Serializer& s) = WriteToBuffer;
 };
 
 inline void
