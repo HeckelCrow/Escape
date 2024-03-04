@@ -4,6 +4,7 @@ out/
 external/
 resources/
 install/
+data/
 
 *.rdbg
 data/out.txt
