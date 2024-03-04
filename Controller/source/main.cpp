@@ -843,11 +843,16 @@ main()
 
         UpdateAudio();
 
-        ImGui::ShowDemoWindow();
+        static bool show_demo = false;
+        if (show_demo)
+            ImGui::ShowDemoWindow(&show_demo);
+
+        if (ImGui::IsKeyPressed(ImGuiKey_F1))
+            show_demo = true;
 
         if (ImGui::Begin("Audio"))
         {
-            static s32 gain_orcs = 100;
+            static s32 gain_orcs = 50;
             ImGui::SliderInt(utf8("Volume orques"), &gain_orcs, 0, 100);
 
             if (ImGui::Button(utf8("Orque!")))
@@ -878,7 +883,7 @@ main()
                 SetGain(player, gain_orcs / 100.f);
             }
 
-            static s32 gain_music = 100;
+            static s32 gain_music = 50;
             if (ImGui::SliderInt(utf8("Volume musique"), &gain_music, 0, 100))
             {
                 SetGain(music_playing, gain_music / 100.f);
