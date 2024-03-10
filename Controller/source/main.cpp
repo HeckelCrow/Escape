@@ -631,6 +631,12 @@ DrawLatchLock(LatchLockState& cmd, const LatchLockState status,
     if ((status != LatchLockState::ForceOpen)
         && (cmd == LatchLockState::ForceOpen))
     {
+        ImGui::SameLine();
+        if (ImGui::Button(utf8("Annuler")))
+        {
+            cmd = LatchLockState::Unpowered;
+        }
+
         color = {0.9f, 0.45f, 0.1f, 1.f};
     }
     else
