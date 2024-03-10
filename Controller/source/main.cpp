@@ -961,6 +961,7 @@ main()
                 {
                     prev_music_playing = music_playing;
                     music_playing      = PlayAudio(music);
+                    SetGain(music_playing, gain_music / 100.f);
                     StopAudio(prev_music_playing);
                 }
             }
