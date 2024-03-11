@@ -27,6 +27,8 @@ struct AdcChannel
     u16  next_sample           = 0;
     u8   target_index          = 0;
     bool over_threshold        = false;
+
+    u32 average = 0; // Average peak to peak x256
 };
 
 struct Adc
@@ -108,7 +110,6 @@ SetCommand(TargetsCommand cmd)
         }
         if (cmd.hitpoints[i] != status.hitpoints[i])
         {
-            Serial.printf("%d, %d\n", cmd.hitpoints[i], status.hitpoints[i]);
             need_resend_status = true;
         }
 
@@ -134,29 +135,33 @@ NewSample(AdcChannel& ch, s16 value)
     ch.samples[ch.next_sample] = value;
     ch.next_sample             = (ch.next_sample + 1) % ch.sample_count;
 
+    s16 min = ch.samples[0];
+    s16 max = ch.samples[0];
+    for (u16 i = 1; i < ch.sample_count; i++)
+    {
+        if (ch.samples[i] < min)
+            min = ch.samples[i];
+        if (ch.samples[i] > max)
+            max = ch.samples[i];
+    }
+
+    s32 peak_to_peak = (s32)max - (s32)min;
+
     if (status.enabled & (1 << ch.target_index))
     {
-        s16 min = ch.samples[0];
-        s16 max = ch.samples[0];
-        for (u16 i = 1; i < ch.sample_count; i++)
-        {
-            if (ch.samples[i] < min)
-                min = ch.samples[i];
-            if (ch.samples[i] > max)
-                max = ch.samples[i];
-        }
-
-        s32 peak_to_peak = (s32)max - (s32)min;
         Serial.printf(">piezo%d:%d\n", ch.target_index, peak_to_peak);
-        // Serial.printf(">piezo_value%d:%d\n",  ch.target_index, value);
+        Serial.printf(">piezo_value%d:%d\n", ch.target_index, value);
+        Serial.printf(">avg%d:%d\n", ch.target_index, ch.average / 256);
+    }
 
-        constexpr s16 threshold = 100;
-        if (peak_to_peak > threshold)
+    s16 threshold = 3 * ch.average / 256;
+    if (peak_to_peak > threshold)
+    {
+        if (!ch.over_threshold)
         {
-            if (!ch.over_threshold)
+            ch.over_threshold = true;
+            if (status.enabled & (1 << ch.target_index))
             {
-                ch.over_threshold = true;
-
                 constexpr s8 hp_min = -10;
                 if (status.hitpoints[ch.target_index] > hp_min)
                 {
@@ -165,10 +170,18 @@ NewSample(AdcChannel& ch, s16 value)
                 }
             }
         }
-        else
-        {
-            ch.over_threshold = false;
-        }
+        ch.average -= ch.average / 256 / 4;
+        ch.average += peak_to_peak / 4;
+    }
+    else
+    {
+        ch.average -= ch.average / 256;
+        ch.average += peak_to_peak;
+        ch.over_threshold = false;
+    }
+    if (ch.average < 5 * 256)
+    {
+        ch.average = 5 * 256;
     }
 }
 
