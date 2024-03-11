@@ -26,7 +26,7 @@ WifiState wifi_state = WifiState::WifiOff;
 void
 StartWifi(bool access_point)
 {
-    WiFi.useStaticBuffers(true);
+    // WiFi.useStaticBuffers(true);
     WiFi.mode(WIFI_STA);
     WiFi.disconnect();
     delay(100);
@@ -225,6 +225,7 @@ ReceiveMessage()
         {
             udp.stop();
             wifi_state = WifiState::StartMulticast;
+            Serial.println(F("Server timed out!"));
         }
     }
     break;

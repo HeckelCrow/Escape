@@ -23,9 +23,10 @@ struct AdcChannel
 
     static constexpr u16 sample_count = 8;
 
-    s16 samples[sample_count] = {};
-    u16 next_sample           = 0;
-    u8  target_index          = 0;
+    s16  samples[sample_count] = {};
+    u16  next_sample           = 0;
+    u8   target_index          = 0;
+    bool over_threshold        = false;
 };
 
 struct Adc
@@ -42,6 +43,9 @@ Adc          adcs[]    = {Adc(0x48 | 0b00), Adc(0x48 | 0b01)};
 constexpr u8 adc_count = sizeof(adcs) / sizeof(adcs[0]);
 
 TargetsStatus status;
+bool          need_resend_status   = false;
+constexpr u32 resend_period        = 100;
+u32           time_last_state_sent = 0;
 
 void
 setup()
@@ -95,12 +99,19 @@ setup()
 void
 SetCommand(TargetsCommand cmd)
 {
+    need_resend_status = false;
     for (u8 i = 0; i < target_count; i++)
     {
-        if (cmd.hitpoints[i] >= 0)
+        if (cmd.set_hitpoints[i] >= 0)
         {
-            status.hitpoints[i] = cmd.hitpoints[i];
+            status.hitpoints[i] = cmd.set_hitpoints[i];
         }
+        if (cmd.hitpoints[i] != status.hitpoints[i])
+        {
+            Serial.printf("%d, %d\n", cmd.hitpoints[i], status.hitpoints[i]);
+            need_resend_status = true;
+        }
+
         u8 bit = (1 << i);
         if (status.enabled & bit != cmd.enable & bit)
         {
@@ -139,9 +150,24 @@ NewSample(AdcChannel& ch, s16 value)
         Serial.printf(">piezo%d:%d\n", ch.target_index, peak_to_peak);
         // Serial.printf(">piezo_value%d:%d\n",  ch.target_index, value);
 
-        constexpr s16 threshold = 500;
-        if (peak_to_peak > threshold || peak_to_peak < -threshold)
+        constexpr s16 threshold = 100;
+        if (peak_to_peak > threshold)
         {
+            if (!ch.over_threshold)
+            {
+                ch.over_threshold = true;
+
+                constexpr s8 hp_min = -10;
+                if (status.hitpoints[ch.target_index] > hp_min)
+                {
+                    status.hitpoints[ch.target_index]--;
+                    need_resend_status = true;
+                }
+            }
+        }
+        else
+        {
+            ch.over_threshold = false;
         }
     }
 }
@@ -149,6 +175,24 @@ NewSample(AdcChannel& ch, s16 value)
 void
 loop()
 {
+    if (need_resend_status)
+    {
+        if (millis() > time_last_state_sent + resend_period)
+        {
+            auto ser = Serializer(SerializerMode::Serialize,
+                                  {packet_buffer, udp_packet_size});
+
+            status.getHeader(this_client_id).serialize(ser);
+            status.serialize(ser);
+
+            udp.beginPacket(server_connection.address, server_connection.port);
+            BufferPtr buffer = {ser.full_buffer.start, ser.buffer.start};
+            udp.write(buffer.start, buffer.end - buffer.start);
+            udp.endPacket();
+            time_last_state_sent = millis();
+        }
+    }
+
     constexpr u32 receive_message_period = 50;
     static u32    next_receive_message   = millis();
     if (millis() >= next_receive_message)
@@ -177,6 +221,7 @@ loop()
             BufferPtr buffer = {ser.full_buffer.start, ser.buffer.start};
             udp.write(buffer.start, buffer.end - buffer.start);
             udp.endPacket();
+            time_last_state_sent = millis();
         }
         break;
         case MessageType::Reset: { ESP.restart();

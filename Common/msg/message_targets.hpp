@@ -7,7 +7,7 @@ struct TargetsCommand
 {
     TargetsCommand()
     {
-        for (auto& h : hitpoints)
+        for (auto& h : set_hitpoints)
         {
             h = -1;
         }
@@ -32,11 +32,13 @@ struct TargetsCommand
         for (u32 i = 0; i < target_count_msg; i++)
         {
             Serialize(hitpoints[i], s);
+            Serialize(set_hitpoints[i], s);
         }
     }
 
-    u8 enable                  = 0;
-    s8 hitpoints[target_count] = {0};
+    u8 enable                      = 0;
+    s8 hitpoints[target_count]     = {0};
+    s8 set_hitpoints[target_count] = {0};
 };
 
 struct TargetsStatus

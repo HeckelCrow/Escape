@@ -536,9 +536,22 @@ constexpr Duration command_resend_period   = Milliseconds(100);
 struct Client
 {
     bool
+    timeout()
+    {
+        return (Clock::now() - time_last_message_received
+                >= client_timeout_duration);
+    }
+
+    bool
     heartbeatTimeout()
     {
-        return (Clock::now() - time_last_message_received >= heartbeat_period);
+        auto now = Clock::now();
+        // We have to check both time_command_sent and
+        // time_last_message_received because targets sends messages on its own
+        // which makes the server stop sending heartbeats. We need to check
+        // time_last_message_received too in case messages get lost.
+        return (now - time_command_sent >= heartbeat_period)
+               || (now - time_last_message_received >= heartbeat_period);
     }
 
     bool
@@ -732,7 +745,7 @@ struct DoorLock
 };
 
 s8
-DrawOrc(u32 index, bool enabled, s8 hp)
+DrawOrc(u32 index, bool enabled, s8 set_hp, s8 hp)
 {
     ImGui::PushID(index);
     SCOPE_EXIT({ ImGui::PopID(); });
@@ -741,10 +754,26 @@ DrawOrc(u32 index, bool enabled, s8 hp)
     SCOPE_EXIT({ ImGui::EndDisabled(); });
 
     ImGui::Text(utf8("Orque %02lu"), index + 1);
+    if (hp <= 0)
+    {
+        ImGui::SameLine();
+        ImGui::Text(utf8("(mort)"));
+    }
+
     s32 hp_s32 = hp;
+    if (set_hp >= 0 && set_hp != hp)
+    {
+        hp_s32 = set_hp;
+        ImGui::PushStyleColor(ImGuiCol_Text, {0.9f, 0.45f, 0.1f, 1.f});
+    }
+
     if (!ImGui::SliderInt(utf8("Points de vie"), &hp_s32, 0, 5))
     {
         hp_s32 = -1;
+    }
+    if (set_hp >= 0 && set_hp != hp)
+    {
+        ImGui::PopStyleColor();
     }
 
     return (s8)hp_s32;
@@ -782,13 +811,15 @@ struct Targets
             for (u32 i = 0; i < target_count; i++)
             {
                 ImGui::Separator();
-                auto hp = DrawOrc(i, command.enable & (1 << i),
-                                  last_status.hitpoints[i]);
-                if (hp >= 0 || command.hitpoints[i] == last_status.hitpoints[i])
+                auto hp =
+                    DrawOrc(i, command.enable & (1 << i),
+                            command.set_hitpoints[i], last_status.hitpoints[i]);
+                if (hp >= 0
+                    || command.set_hitpoints[i] == last_status.hitpoints[i])
                 {
                     // We set the command to -1 only when we received a status
                     // with the right hitpoint value.
-                    command.hitpoints[i] = hp;
+                    command.set_hitpoints[i] = hp;
                 }
             }
         }
@@ -801,8 +832,8 @@ struct Targets
         }
         for (u32 i = 0; i < target_count; i++)
         {
-            if (command.hitpoints[i] >= 0
-                && command.hitpoints[i] != last_status.hitpoints[i])
+            if (command.set_hitpoints[i] >= 0
+                && command.set_hitpoints[i] != last_status.hitpoints[i])
             {
                 need_update = true;
             }
@@ -814,6 +845,18 @@ struct Targets
             {
                 if (client.resendTimeout())
                 {
+                    for (u32 i = 0; i < target_count; i++)
+                    {
+                        if (command.set_hitpoints[i] >= 0)
+                        {
+                            command.hitpoints[i] = command.set_hitpoints[i];
+                        }
+                        else
+                        {
+                            command.hitpoints[i] = last_status.hitpoints[i];
+                        }
+                    }
+
                     client.time_command_sent = Clock::now();
 
                     std::vector<u8> buffer(udp_packet_size);
@@ -1129,7 +1172,9 @@ main()
                     u32 i = 0;
                     for (auto& h : msg.hitpoints)
                     {
-                        Print("   - Target {}: {} hp\n", i, h);
+                        Print("   - Target {} ({}): {} hp\n", i,
+                              (msg.enabled & (1 << i)) ? "Enabled" : "Disabled",
+                              h);
                         i++;
                     }
 
@@ -1165,8 +1210,7 @@ main()
             if (!client.connected)
                 continue;
 
-            auto timeout = Clock::now() - client.time_last_message_received;
-            if (timeout > client_timeout_duration)
+            if (client.timeout())
             {
                 PrintWarning("[{}] timed out\n", client_name);
                 client.connected = false;
