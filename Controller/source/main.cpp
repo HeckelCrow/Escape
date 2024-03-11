@@ -731,6 +731,25 @@ struct DoorLock
     DoorLockStatus  last_status;
 };
 
+s8
+DrawOrc(u32 index, bool enabled, s8 hp)
+{
+    ImGui::PushID(index);
+    SCOPE_EXIT({ ImGui::PopID(); });
+
+    ImGui::BeginDisabled(!enabled);
+    SCOPE_EXIT({ ImGui::EndDisabled(); });
+
+    ImGui::Text(utf8("Orque %02lu"), index + 1);
+    s32 hp_s32 = hp;
+    if (!ImGui::SliderInt(utf8("Points de vie"), &hp_s32, 0, 5))
+    {
+        hp_s32 = -1;
+    }
+
+    return (s8)hp_s32;
+}
+
 struct Targets
 {
     Targets() {}
@@ -751,15 +770,27 @@ struct Targets
                 ImGui::TextColored({0.9f, 0.1f, 0.1f, 1.f},
                                    utf8("(Déconnecté)"));
             }
-            ImGui::Separator();
+            bool enable = (command.enable != 0);
+            if (ImGui::Checkbox(utf8("Activer"), &enable))
+            {
+                if (enable)
+                    command.enable = U8_MAX;
+                else
+                    command.enable = 0;
+            }
 
-            ImGui::Text(utf8("Orque 01"));
-            ImGui::Separator();
-            ImGui::Text(utf8("Orque 02"));
-            ImGui::Separator();
-            ImGui::Text(utf8("Orque 03"));
-            ImGui::Separator();
-            ImGui::Text(utf8("Orque 04"));
+            for (u32 i = 0; i < target_count; i++)
+            {
+                ImGui::Separator();
+                auto hp = DrawOrc(i, command.enable & (1 << i),
+                                  last_status.hitpoints[i]);
+                if (hp >= 0 || command.hitpoints[i] == last_status.hitpoints[i])
+                {
+                    // We set the command to -1 only when we received a status
+                    // with the right hitpoint value.
+                    command.hitpoints[i] = hp;
+                }
+            }
         }
         ImGui::End();
 
@@ -767,6 +798,14 @@ struct Targets
         if (command.enable != last_status.enabled)
         {
             need_update = true;
+        }
+        for (u32 i = 0; i < target_count; i++)
+        {
+            if (command.hitpoints[i] >= 0
+                && command.hitpoints[i] != last_status.hitpoints[i])
+            {
+                need_update = true;
+            }
         }
 
         if (client.connection.socket)
@@ -1087,6 +1126,12 @@ main()
                     msg.serialize(message.deserializer);
                     Print("   LockDoorStatus:\n");
                     Print("   Enabled {}\n", msg.enabled);
+                    u32 i = 0;
+                    for (auto& h : msg.hitpoints)
+                    {
+                        Print("   - Target {}: {} hp\n", i, h);
+                        i++;
+                    }
 
                     targets.last_status = msg;
                 }
