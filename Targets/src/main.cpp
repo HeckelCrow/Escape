@@ -21,7 +21,7 @@ struct AdcChannel
 {
     AdcChannel() {}
 
-    static constexpr u16 sample_count = 8;
+    static constexpr u16 sample_count = 16;
 
     s16  samples[sample_count] = {};
     u16  next_sample           = 0;
@@ -95,7 +95,7 @@ setup()
     }
 
     Serial.println("Start wifi");
-    StartWifi(true);
+    StartWifi();
 }
 
 void

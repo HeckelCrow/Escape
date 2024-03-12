@@ -13,14 +13,6 @@ constexpr u32 timeout_period             = 3000;
 
 u8 packet_buffer[udp_packet_size];
 
-enum class WifiState
-{
-    WifiOff,
-    WaitingForWifi,
-    StartMulticast,
-    WaitingForMulticast,
-    Connected,
-};
 WifiState wifi_state = WifiState::WifiOff;
 
 void
