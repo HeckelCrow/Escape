@@ -40,7 +40,7 @@ setup()
 
     // delay(2000);
     Serial.println("Start wifi");
-    StartWifi(true);
+    StartWifi();
 }
 
 constexpr u16 tone_NoSound = 50000;

@@ -37,6 +37,7 @@ struct Connection
 #include "msg/message_format.hpp"
 #include "msg/message_door_lock.hpp"
 #include "msg/message_targets.hpp"
+#include "msg/message_timer.hpp"
 
 using Clock     = std::chrono::high_resolution_clock;
 using Timepoint = std::chrono::time_point<Clock>;
@@ -44,19 +45,28 @@ using Duration  = std::chrono::microseconds;
 
 ClientId this_client_id = ClientId::Server;
 
-const char* client_names[(u32)ClientId::IdMax] = {
-    "Invalid", "Server", "Door Lock", "Rings", "Targets"};
+const char* client_names[] = {"Invalid", "Server",  "Door Lock",
+                              "Rings",   "Targets", "Timer"};
+static_assert(sizeof(client_names) / sizeof(client_names[0])
+                  == (u64)ClientId::IdMax,
+              "Client name mismatch");
 
 constexpr Duration
-Microseconds(u64 t)
+Microseconds(s64 t)
 {
     return std::chrono::microseconds(t);
 }
 
 constexpr Duration
-Milliseconds(u64 t)
+Milliseconds(s64 t)
 {
     return std::chrono::milliseconds(t);
+}
+
+constexpr Duration
+Seconds(s64 t)
+{
+    return std::chrono::seconds(t);
 }
 
 void
@@ -876,6 +886,133 @@ struct Targets
     TargetsStatus  last_status;
 };
 
+s64
+DivideAndRoundDown(s64 numerator, s64 denominator)
+{
+    if (numerator < 0 && numerator % denominator != 0)
+    {
+        return numerator / denominator - 1;
+    }
+    return numerator / denominator;
+}
+
+struct Timer
+{
+    Timer()
+    {
+        last_measure = Clock::now();
+    }
+
+    void
+    update(Client& client)
+    {
+        auto now     = Clock::now();
+        auto elapsed = std::chrono::duration_cast<Duration>(now - last_measure);
+        if (!paused && !editing)
+        {
+            time_left -= elapsed;
+        }
+        command.time_left =
+            (s32)DivideAndRoundDown(time_left.count(), 1'000'000);
+        last_measure = now;
+
+        if (ImGui::Begin(utf8("Chrono")))
+        {
+            ImGui::Text(utf8("Chrono"));
+            ImGui::SameLine();
+            if (client.connected)
+            {
+                ImGui::TextColored({0.1f, 0.9f, 0.1f, 1.f}, utf8("(Connecté)"));
+            }
+            else
+            {
+                ImGui::TextColored({0.9f, 0.1f, 0.1f, 1.f},
+                                   utf8("(Déconnecté)"));
+            }
+            s32  minutes          = command.time_left / 60;
+            s32  seconds          = command.time_left % 60;
+            bool update_time_left = false;
+            editing               = false;
+            auto flags            = ImGuiInputTextFlags_AutoSelectAll;
+            ImGui::SetNextItemWidth(100);
+            if (ImGui::InputInt("##Minutes", &minutes, 1, 100, flags))
+            {
+                update_time_left = true;
+            }
+            if (ImGui::IsItemActive())
+            {
+                editing = true;
+            }
+            ImGui::SameLine();
+            ImGui::Text(":");
+            ImGui::SameLine();
+            ImGui::SetNextItemWidth(100);
+            if (ImGui::InputInt("##Seconds", &seconds, 1, 100, flags))
+            {
+                update_time_left = true;
+            }
+            if (ImGui::IsItemActive())
+            {
+                editing = true;
+            }
+            if (update_time_left)
+            {
+                time_left = Seconds((s64)minutes * 60 + (s64)seconds);
+                time_left += Milliseconds(999);
+            }
+
+            ImGui::BeginDisabled(!paused);
+            if (ImGui::Button(utf8("Go!")))
+            {
+                paused = false;
+            }
+            ImGui::EndDisabled();
+            ImGui::SameLine();
+            ImGui::BeginDisabled(paused);
+            if (ImGui::Button(utf8("Pause")))
+            {
+                paused = true;
+            }
+            ImGui::EndDisabled();
+        }
+        ImGui::End();
+
+        bool need_update = false;
+        if (command.time_left != last_status.time_left)
+        {
+            need_update = true;
+        }
+
+        if (client.connection.socket)
+        {
+            if (need_update || client.heartbeatTimeout())
+            {
+                if (client.resendTimeout())
+                {
+                    client.time_command_sent = Clock::now();
+
+                    std::vector<u8> buffer(udp_packet_size);
+                    Serializer      serializer(SerializerMode::Serialize,
+                                               {buffer.data(), (u32)buffer.size()});
+
+                    command.getHeader(ClientId::Server).serialize(serializer);
+                    command.serialize(serializer);
+
+                    SendPacket(client.connection, serializer);
+                }
+            }
+        }
+    }
+
+    Timepoint last_measure;
+    Duration  time_left = Seconds(60 * 60);
+    bool      paused    = true;
+    bool      editing   = false;
+
+    TimerCommand command;
+    TimerStatus  last_status;
+};
+
 template<typename T, typename R>
 Str
 DurationToString(std::chrono::duration<T, R> d)
@@ -914,6 +1051,7 @@ main()
     std::vector<Client> clients((u64)ClientId::IdMax);
     DoorLock            door_lock;
     Targets             targets;
+    Timer               timer;
 
     InitAudio(32);
     SCOPE_EXIT({ TerminateAudio(); });
@@ -1182,6 +1320,22 @@ main()
                 }
                 break;
 
+                case MessageType::TimerCommand: {
+                    PrintWarning("Server received a TimerCommand message\n");
+                    TimerCommand msg;
+                    msg.serialize(message.deserializer);
+                }
+                break;
+                case MessageType::TimerStatus: {
+                    TimerStatus msg;
+                    msg.serialize(message.deserializer);
+                    Print("   TimerStatus:\n");
+                    Print("   Time left {:02}:{:02}\n", msg.time_left / 60,
+                          msg.time_left % 60);
+                    timer.last_status = msg;
+                }
+                break;
+
                 default: {
                     PrintWarning("Message type {}\n", (u32)message.header.type);
                 }
@@ -1204,6 +1358,7 @@ main()
             {
             case ClientId::DoorLock: door_lock.update(client); break;
             case ClientId::Targets: targets.update(client); break;
+            case ClientId::Timer: timer.update(client); break;
             default: break;
             }
 

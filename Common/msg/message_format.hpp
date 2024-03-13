@@ -10,6 +10,7 @@ enum class ClientId : u8
     DoorLock,
     Rings,
     Targets,
+    Timer,
 
     IdMax // Last
 };
@@ -30,6 +31,10 @@ enum class MessageType : u8
     // message_targets.hpp
     TargetsCommand = 30,
     TargetsStatus,
+
+    // message_timer.hpp
+    TimerCommand = 40,
+    TimerStatus,
 
     MessageTypeMax // Last
 };
