@@ -541,7 +541,7 @@ ReceiveMessage(Server& server)
 
 constexpr Duration client_timeout_duration = Milliseconds(1200);
 constexpr Duration heartbeat_period        = Milliseconds(700);
-constexpr Duration command_resend_period   = Milliseconds(100);
+constexpr Duration command_resend_period   = Milliseconds(200);
 
 struct Client
 {
@@ -989,6 +989,7 @@ struct Timer
             {
                 if (client.resendTimeout())
                 {
+                    Print("Send packet\n");
                     client.time_command_sent = Clock::now();
 
                     std::vector<u8> buffer(udp_packet_size);

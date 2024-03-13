@@ -95,7 +95,7 @@ setup()
     }
 
     Serial.println("Start wifi");
-    StartWifi();
+    StartWifi(true);
 }
 
 void

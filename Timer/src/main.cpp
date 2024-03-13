@@ -61,7 +61,7 @@ setup()
     }
 
     Serial.println("Start wifi");
-    StartWifi(true);
+    StartWifi();
 
     tft.loadFont("FanjofeyAH-120", LittleFS);
     tft.setTextDatum(ML_DATUM);
@@ -108,9 +108,9 @@ loop()
         {
             tft.loadFont("FanjofeyAH-120", LittleFS);
         }
-        was_connected        = true;
+
         static s32 curr_time = 0;
-        if (status.time_left != curr_time)
+        if (status.time_left != curr_time || !was_connected)
         {
             curr_time = status.time_left;
             tft.fillScreen(TFT_BLACK);
@@ -166,6 +166,7 @@ loop()
             //     udp.endPacket();
             // }
         }
+        was_connected = true;
     }
     else
     {
@@ -188,13 +189,22 @@ loop()
 
             static s16 y = 0;
             y += 10;
-            if (y + tft.fontHeight() > screen_height)
+            if (y + tft.fontHeight() * 2 > screen_height)
             {
                 y = 0;
             }
 
             tft.fillScreen(TFT_BLACK);
-            tft.drawString("Attente de connexion", screen_width / 2, y);
+            if (wifi_state == WifiState::WaitingForWifi)
+            {
+                tft.drawString("Recherche du réseau", screen_width / 2, y);
+                tft.drawString("Wifi", screen_width / 2, y + tft.fontHeight());
+            }
+            else
+            {
+                tft.drawString("Attente de connexion", screen_width / 2, y);
+                tft.drawString("du pc", screen_width / 2, y + tft.fontHeight());
+            }
         }
     }
 }

@@ -192,6 +192,11 @@ ReceiveMessage()
                 Serial.println(F("Multicast header is wrong!"));
             }
         }
+
+        if (WiFi.status() != WL_CONNECTED)
+        {
+            wifi_state = WifiState::WaitingForWifi;
+        }
     }
     break;
     case WifiState::Connected:
