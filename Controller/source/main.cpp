@@ -38,6 +38,7 @@ struct Connection
 #include "msg/message_door_lock.hpp"
 #include "msg/message_targets.hpp"
 #include "msg/message_timer.hpp"
+#include "msg/message_ring_dispenser.hpp"
 
 using Clock     = std::chrono::high_resolution_clock;
 using Timepoint = std::chrono::time_point<Clock>;
@@ -45,8 +46,8 @@ using Duration  = std::chrono::microseconds;
 
 ClientId this_client_id = ClientId::Server;
 
-const char* client_names[] = {"Invalid", "Server",  "Door Lock",
-                              "Rings",   "Targets", "Timer"};
+const char* client_names[] = {"Invalid", "Server", "Door Lock",     "Rings",
+                              "Targets", "Timer",  "Ring Dispenser"};
 static_assert(sizeof(client_names) / sizeof(client_names[0])
                   == (u64)ClientId::IdMax,
               "Client name mismatch");
@@ -789,8 +790,8 @@ DrawOrc(u32 index, bool enabled, s8 set_hp, s8 hp)
     ImGui::PushID(index);
     SCOPE_EXIT({ ImGui::PopID(); });
 
-    ImGui::BeginDisabled(!enabled);
-    SCOPE_EXIT({ ImGui::EndDisabled(); });
+    // ImGui::BeginDisabled(!enabled);
+    // SCOPE_EXIT({ ImGui::EndDisabled(); });
 
     ImGui::Text(utf8("Orque %02lu"), index + 1);
     if (hp <= 0)
@@ -1061,9 +1062,6 @@ struct Timer
             {
                 if (client.resendTimeout())
                 {
-                    static auto test = Clock::now();
-                    PrintSuccess("{} Send packet:\n",
-                                 DurationToString(Clock::now() - test));
                     client.time_command_sent = Clock::now();
 
                     std::vector<u8> buffer(udp_packet_size);
@@ -1085,6 +1083,86 @@ struct Timer
 
     TimerCommand command;
     TimerStatus  last_status;
+};
+
+struct RingDispenser
+{
+    RingDispenser() {}
+
+    void
+    receiveMessage(Client& client, const RingDispenserStatus& msg)
+    {
+        Print("   RingDispenser:\n");
+        Print("   Activated: {}\n", msg.activated ? "True" : "False");
+
+        last_status = msg;
+    }
+
+    void
+    update(Client& client)
+    {
+        if (ImGui::Begin(utf8("Anneau Unique")))
+        {
+            ImGui::Text(utf8("Anneau Unique"));
+            ImGui::SameLine();
+            if (client.connected)
+            {
+                ImGui::TextColored({0.1f, 0.9f, 0.1f, 1.f}, utf8("(Connecté)"));
+            }
+            else
+            {
+                ImGui::TextColored({0.9f, 0.1f, 0.1f, 1.f},
+                                   utf8("(Déconnecté)"));
+            }
+            command.activate = Clock::now() - activation_start
+                               < Milliseconds(activation_duration);
+
+            ImGui::BeginDisabled(command.activate);
+            if (ImGui::Button(utf8("Libérer")))
+            {
+                activation_start = Clock::now();
+                command.activate = true;
+            }
+            ImGui::EndDisabled();
+            if (command.activate && ImGui::Button(utf8("Annuler")))
+            {
+                activation_start = {};
+                command.activate = false;
+            }
+        }
+        ImGui::End();
+
+        bool need_update = false;
+        if (last_status.activated != command.activate)
+        {
+            need_update = true;
+        }
+
+        if (client.connection.socket)
+        {
+            if (need_update || client.heartbeatTimeout())
+            {
+                if (client.resendTimeout())
+                {
+                    client.time_command_sent = Clock::now();
+
+                    std::vector<u8> buffer(udp_packet_size);
+                    Serializer      serializer(SerializerMode::Serialize,
+                                               {buffer.data(), (u32)buffer.size()});
+
+                    command.getHeader(ClientId::Server).serialize(serializer);
+                    command.serialize(serializer);
+
+                    SendPacket(client.connection, serializer);
+                }
+            }
+        }
+    }
+
+    Timepoint activation_start;
+
+    RingDispenserCommand command;
+    RingDispenserStatus  last_status;
 };
 
 int
@@ -1116,6 +1194,7 @@ main()
     DoorLock            door_lock;
     Targets             targets;
     Timer               timer;
+    RingDispenser       ring_dispenser;
 
     InitAudio(32);
     SCOPE_EXIT({ TerminateAudio(); });
@@ -1372,6 +1451,20 @@ main()
                 }
                 break;
 
+                case MessageType::RingDispenserCommand: {
+                    PrintWarning(
+                        "Server received a RingDispenserCommand message\n");
+                    RingDispenserCommand msg;
+                    msg.serialize(message.deserializer);
+                }
+                break;
+                case MessageType::RingDispenserStatus: {
+                    RingDispenserStatus msg;
+                    msg.serialize(message.deserializer);
+                    ring_dispenser.receiveMessage(client, msg);
+                }
+                break;
+
                 default: {
                     PrintWarning("Message type {}\n", (u32)message.header.type);
                 }
@@ -1395,6 +1488,7 @@ main()
             case ClientId::DoorLock: door_lock.update(client); break;
             case ClientId::Targets: targets.update(client); break;
             case ClientId::Timer: timer.update(client); break;
+            case ClientId::RingDispenser: ring_dispenser.update(client); break;
             default: break;
             }
 

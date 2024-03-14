@@ -29,7 +29,7 @@ StartWifi(bool access_point)
     if (access_point)
     {
         WiFi.mode(WIFI_AP);
-        constexpr s32 max_connection_count = 4;
+        constexpr s32 max_connection_count = 6;
         WiFi.softAP(wifi_ssid, wifi_password, 1, 0, max_connection_count);
         wifi_state = WifiState::StartMulticast;
 

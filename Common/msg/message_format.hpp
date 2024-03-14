@@ -11,6 +11,7 @@ enum class ClientId : u8
     Rings,
     Targets,
     Timer,
+    RingDispenser,
 
     IdMax // Last
 };
@@ -35,6 +36,10 @@ enum class MessageType : u8
     // message_timer.hpp
     TimerCommand = 40,
     TimerStatus,
+
+    // message_ring_dispenser.hpp
+    RingDispenserCommand = 50,
+    RingDispenserStatus,
 
     MessageTypeMax // Last
 };
