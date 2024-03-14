@@ -30,52 +30,77 @@ constexpr s16 screen_height = TFT_WIDTH;
 
 SPIClass sdSPI(VSPI);
 
-// File pngfile;
-// PNG  png;
+String* images_paths;
+u32     image_count     = 0;
+s32     curr_image      = 0;
+s32     image_displayed = -1;
 
-// void*
-// pngOpen(const char* filename, int32_t* size)
-// {
-//     Serial.printf("Attempting to open %s\n", filename);
-//     pngfile = SD.open(filename, "r");
-//     *size   = pngfile.size();
-//     return &pngfile;
-// }
+struct Button
+{
+    enum class State
+    {
+        Pressed,
+        Clicked,
+        NotPressed,
+        Released,
+        LongPress,
+    };
 
-// void
-// pngClose(void* handle)
-// {
-//     File pngfile = *((File*)handle);
-//     if (pngfile)
-//         pngfile.close();
-// }
+    Button();
+    Button(u8 pin_) : pin(pin_), debounce(millis())
+    {
+        pinMode(pin, INPUT_PULLUP);
+        prev_value = digitalRead(pin);
+    }
 
-// int32_t
-// pngRead(PNGFILE* page, uint8_t* buffer, int32_t length)
-// {
-//     if (!pngfile)
-//         return 0;
-//     page = page; // Avoid warning
-//     return pngfile.read(buffer, length);
-// }
+    State
+    getState()
+    {
+        State state =
+            (prev_value == pressed_state) ? State::Pressed : State::NotPressed;
 
-// int32_t
-// pngSeek(PNGFILE* page, int32_t position)
-// {
-//     if (!pngfile)
-//         return 0;
-//     page = page; // Avoid warning
-//     return pngfile.seek(position);
-// }
+        u8  value          = digitalRead(pin);
+        u32 state_duration = millis() - debounce;
+        if (value != prev_value && state_duration > 200)
+        {
+            prev_value = value;
+            debounce   = millis();
 
-// void
-// pngDraw(PNGDRAW* pDraw)
-// {
-//     uint16_t lineBuffer[screen_width];
-//     png.getLineAsRGB565(pDraw, lineBuffer, PNG_RGB565_BIG_ENDIAN,
-//     0xffffffff); tft.pushImage(0, 0 + pDraw->y, pDraw->iWidth, 1,
-//     lineBuffer);
-// }
+            if (!long_pressed)
+            {
+                state =
+                    (value == pressed_state) ? State::Clicked : State::Released;
+            }
+            long_pressed = false;
+        }
+        else if (state_duration > 1000 && !long_pressed)
+        {
+            if (prev_value == pressed_state)
+            {
+                state        = State::LongPress;
+                long_pressed = true;
+            }
+        }
+        return state;
+    }
+
+    u8   pin;
+    u8   pressed_state = LOW;
+    u8   prev_value    = 0;
+    bool long_pressed  = false;
+    u32  debounce      = 0;
+};
+
+bool
+IsPressed(Button::State state)
+{
+    return (state == Button::State::Pressed)
+           || (state == Button::State::Clicked)
+           || (state == Button::State::LongPress);
+}
+
+Button button_top(BUTTON_RIGHT);
+Button button_bottom(BUTTON_LEFT);
 
 void
 setup()
@@ -119,6 +144,30 @@ setup()
     tft.setTextColor(TFT_WHITE, TFT_BLACK);
     tft.setTextDatum(TC_DATUM);
     tft.drawString("Hello", screen_width / 2, 0);
+
+    auto dir = SD.open("/images");
+    while (true)
+    {
+        auto file = dir.openNextFile();
+        if (!file)
+        {
+            break;
+        }
+        image_count++;
+    }
+    images_paths = new String[image_count];
+
+    dir.rewindDirectory();
+    for (u32 i = 0; i < image_count; i++)
+    {
+        auto file = dir.openNextFile();
+        if (!file)
+        {
+            break;
+        }
+        images_paths[i] = "/";
+        images_paths[i] += file.path();
+    }
 }
 
 void
@@ -206,36 +255,53 @@ renderJPEG(int xpos, int ypos)
 void
 loop()
 {
-    File jpgFile = SD.open("/grotte3.jpg", FILE_READ);
+    if (button_top.getState() == Button::State::Clicked)
+    {
+        curr_image++;
+        if (curr_image >= image_count)
+            curr_image = 0;
+    }
+    if (button_bottom.getState() == Button::State::Clicked)
+    {
+        curr_image--;
+        if (curr_image < 0)
+            curr_image = image_count - 1;
+    }
 
-    JpegDec.decodeSdFile(jpgFile);
-    delay(1000);
+    if (image_displayed != curr_image)
+    {
+        image_displayed = curr_image;
+        File jpgFile    = SD.open(images_paths[curr_image].c_str(), FILE_READ);
 
-    Serial.println(F("==============="));
-    Serial.println(F("JPEG image info"));
-    Serial.println(F("==============="));
-    Serial.print(F("Width      :"));
-    Serial.println(JpegDec.width);
-    Serial.print(F("Height     :"));
-    Serial.println(JpegDec.height);
-    Serial.print(F("Components :"));
-    Serial.println(JpegDec.comps);
-    Serial.print(F("MCU / row  :"));
-    Serial.println(JpegDec.MCUSPerRow);
-    Serial.print(F("MCU / col  :"));
-    Serial.println(JpegDec.MCUSPerCol);
-    Serial.print(F("Scan type  :"));
-    Serial.println(JpegDec.scanType);
-    Serial.print(F("MCU width  :"));
-    Serial.println(JpegDec.MCUWidth);
-    Serial.print(F("MCU height :"));
-    Serial.println(JpegDec.MCUHeight);
-    Serial.println(F("==============="));
+        JpegDec.decodeSdFile(jpgFile);
 
-    renderJPEG(0, 0);
-    delay(4000);
-    tft.fillScreen(random(0xFFFF));
-    tft.drawString("Hello", screen_width / 2, 0);
+        // Serial.println(F("==============="));
+        // Serial.println(F("JPEG image info"));
+        // Serial.println(F("==============="));
+        // Serial.print(F("Width      :"));
+        // Serial.println(JpegDec.width);
+        // Serial.print(F("Height     :"));
+        // Serial.println(JpegDec.height);
+        // Serial.print(F("Components :"));
+        // Serial.println(JpegDec.comps);
+        // Serial.print(F("MCU / row  :"));
+        // Serial.println(JpegDec.MCUSPerRow);
+        // Serial.print(F("MCU / col  :"));
+        // Serial.println(JpegDec.MCUSPerCol);
+        // Serial.print(F("Scan type  :"));
+        // Serial.println(JpegDec.scanType);
+        // Serial.print(F("MCU width  :"));
+        // Serial.println(JpegDec.MCUWidth);
+        // Serial.print(F("MCU height :"));
+        // Serial.println(JpegDec.MCUHeight);
+        // Serial.println(F("==============="));
+
+        renderJPEG(0, 0);
+    }
+
+    // delay(4000);
+    // tft.fillScreen(random(0xFFFF));
+    // tft.drawString("Hello", screen_width / 2, 0);
 
     // s16 rc =
     //     png.open("/grotte.png", pngOpen, pngClose, pngRead, pngSeek,
