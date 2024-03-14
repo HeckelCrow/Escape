@@ -539,6 +539,16 @@ ReceiveMessage(Server& server)
     return msg;
 }
 
+template<typename T, typename R>
+Str
+DurationToString(std::chrono::duration<T, R> d)
+{
+    u64 ms  = std::chrono::duration_cast<std::chrono::milliseconds>(d).count();
+    Str str = fmt::format("{:02}:{:02}:{:02}.{:03}", ms / 3'600'000,
+                          ms / 60000 % 60, ms / 1000 % 60, ms % 1000);
+    return str;
+}
+
 constexpr Duration client_timeout_duration = Milliseconds(1200);
 constexpr Duration heartbeat_period        = Milliseconds(700);
 constexpr Duration command_resend_period   = Milliseconds(100);
@@ -948,15 +958,16 @@ struct Timer
 {
     Timer()
     {
-        last_measure = Clock::now();
+        last_measure   = Clock::now();
+        command.paused = true;
     }
 
     void
     receiveMessage(Client& client, const TimerStatus& msg)
     {
         Print("   TimerStatus:\n");
-        Print("   Time left {:02}:{:02}\n", msg.time_left / 60,
-              msg.time_left % 60);
+        Print("   Time left {:02}:{:02}\n", msg.time_left / 1000 / 60,
+              msg.time_left / 1000 % 60);
 
         last_status = msg;
     }
@@ -966,13 +977,12 @@ struct Timer
     {
         auto now     = Clock::now();
         auto elapsed = std::chrono::duration_cast<Duration>(now - last_measure);
-        if (!paused && !editing)
+        if (!command.paused && !editing)
         {
             time_left -= elapsed;
         }
-        command.time_left =
-            (s32)DivideAndRoundDown(time_left.count(), 1'000'000);
-        last_measure = now;
+        command.time_left = (s32)DivideAndRoundDown(time_left.count(), 1'000);
+        last_measure      = now;
 
         if (ImGui::Begin(utf8("Chrono")))
         {
@@ -987,8 +997,8 @@ struct Timer
                 ImGui::TextColored({0.9f, 0.1f, 0.1f, 1.f},
                                    utf8("(Déconnecté)"));
             }
-            s32  minutes          = command.time_left / 60;
-            s32  seconds          = command.time_left % 60;
+            s32  minutes          = command.time_left / 1000 / 60;
+            s32  seconds          = command.time_left / 1000 % 60;
             bool update_time_left = false;
             editing               = false;
             auto flags            = ImGuiInputTextFlags_AutoSelectAll;
@@ -1019,24 +1029,28 @@ struct Timer
                 time_left += Milliseconds(999);
             }
 
-            ImGui::BeginDisabled(!paused);
+            ImGui::BeginDisabled(!command.paused);
             if (ImGui::Button(utf8("Go!")))
             {
-                paused = false;
+                command.paused = false;
             }
             ImGui::EndDisabled();
             ImGui::SameLine();
-            ImGui::BeginDisabled(paused);
+            ImGui::BeginDisabled(command.paused);
             if (ImGui::Button(utf8("Pause")))
             {
-                paused = true;
+                command.paused = true;
             }
             ImGui::EndDisabled();
         }
         ImGui::End();
 
         bool need_update = false;
-        if (command.time_left != last_status.time_left)
+        if (std::abs(command.time_left - last_status.time_left) > 400)
+        {
+            need_update = true;
+        }
+        if (command.paused != last_status.paused)
         {
             need_update = true;
         }
@@ -1047,7 +1061,9 @@ struct Timer
             {
                 if (client.resendTimeout())
                 {
-                    Print("Send packet\n");
+                    static auto test = Clock::now();
+                    PrintSuccess("{} Send packet:\n",
+                                 DurationToString(Clock::now() - test));
                     client.time_command_sent = Clock::now();
 
                     std::vector<u8> buffer(udp_packet_size);
@@ -1065,22 +1081,11 @@ struct Timer
 
     Timepoint last_measure;
     Duration  time_left = Seconds(60 * 60);
-    bool      paused    = true;
     bool      editing   = false;
 
     TimerCommand command;
     TimerStatus  last_status;
 };
-
-template<typename T, typename R>
-Str
-DurationToString(std::chrono::duration<T, R> d)
-{
-    u64 ms  = std::chrono::duration_cast<std::chrono::milliseconds>(d).count();
-    Str str = fmt::format("{:02}:{:02}:{:02}.{:03}", ms / 3'600'000,
-                          ms / 60000 % 60, ms / 1000 % 60, ms % 1000);
-    return str;
-}
 
 int
 main()

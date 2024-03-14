@@ -69,6 +69,16 @@ setup()
     tft.fillScreen(TFT_BLACK);
 }
 
+u32
+GetFrameTime()
+{
+    u32        time      = millis();
+    static u32 last_time = time;
+    u32        elapsed   = time - last_time;
+    last_time            = time;
+    return elapsed;
+}
+
 void
 loop()
 {
@@ -82,7 +92,11 @@ loop()
 
         Serial.println(F("TimerCommand"));
 
-        status.time_left = cmd.time_left;
+        status.paused = cmd.paused;
+        if (abs(status.time_left - cmd.time_left) > 200 || status.paused)
+        {
+            status.time_left = cmd.time_left;
+        }
 
         auto ser = Serializer(SerializerMode::Serialize,
                               {packet_buffer, udp_packet_size});
@@ -101,6 +115,8 @@ loop()
     break;
     }
 
+    u32 frame_time = GetFrameTime();
+
     static bool was_connected = true;
     if (wifi_state == WifiState::Connected)
     {
@@ -109,10 +125,15 @@ loop()
             tft.loadFont("FanjofeyAH-120", LittleFS);
         }
 
-        static s32 curr_time = 0;
-        if (status.time_left != curr_time || !was_connected)
+        if (!status.paused)
         {
-            curr_time = status.time_left;
+            status.time_left -= frame_time;
+        }
+
+        static s32 curr_time = 0; // seconds
+        if (status.time_left / 1000 != curr_time || !was_connected)
+        {
+            curr_time = status.time_left / 1000;
             tft.fillScreen(TFT_BLACK);
             s16 x = 0;
 

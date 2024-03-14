@@ -13,10 +13,12 @@ struct TimerCommand
     void
     serialize(Serializer& s)
     {
+        Serialize(paused, s);
         Serialize(time_left, s);
     }
 
-    s32 time_left = 0; // seconds
+    u8  paused    = false;
+    s32 time_left = 0; // milliseconds
 };
 
 struct TimerStatus
@@ -31,8 +33,10 @@ struct TimerStatus
     void
     serialize(Serializer& s)
     {
+        Serialize(paused, s);
         Serialize(time_left, s);
     }
 
-    s32 time_left = 0; // seconds
+    u8  paused    = false;
+    s32 time_left = 0; // milliseconds
 };
