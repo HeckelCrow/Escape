@@ -2,7 +2,7 @@
 #include <Wifi.h>
 
 WiFiUDP     udp;
-const char* wifi_ssid     = "Julien";
+const char* wifi_ssid     = "C'est pas le wifi de la bibli";
 const char* wifi_password = "01234567";
 
 Connection multicast_connection = {IPAddress(239, 255, 0, 1), 55872};
