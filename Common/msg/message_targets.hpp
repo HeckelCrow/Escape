@@ -21,6 +21,7 @@ struct TargetsCommand
     void
     serialize(Serializer& s)
     {
+        Serialize(ask_for_ack, s);
         Serialize(enable, s);
 
         auto target_count_msg = target_count;
@@ -36,6 +37,7 @@ struct TargetsCommand
         }
     }
 
+    u8 ask_for_ack                 = 0;
     u8 enable                      = 0;
     s8 hitpoints[target_count]     = {0};
     s8 set_hitpoints[target_count] = {0};
@@ -53,6 +55,7 @@ struct TargetsStatus
     void
     serialize(Serializer& s)
     {
+        Serialize(ask_for_ack, s);
         Serialize(enabled, s);
 
         auto target_count_msg = target_count;
@@ -67,6 +70,7 @@ struct TargetsStatus
         }
     }
 
+    u8 ask_for_ack             = 0;
     u8 enabled                 = 0;
     s8 hitpoints[target_count] = {0};
 };

@@ -15,9 +15,12 @@ u8 packet_buffer[udp_packet_size];
 
 WifiState wifi_state = WifiState::WifiOff;
 
+bool create_access_point = false;
+
 void
 StartWifi(bool access_point)
 {
+    create_access_point = access_point;
     // WiFi.useStaticBuffers(true);
     WiFi.mode(WIFI_STA);
     WiFi.disconnect();
@@ -91,7 +94,7 @@ ReceiveMessage()
 
     switch (wifi_state)
     {
-    case WifiState::WifiOff: StartWifi(); break;
+    case WifiState::WifiOff: StartWifi(create_access_point); break;
     case WifiState::WaitingForWifi:
     {
         if (WiFi.status() == WL_CONNECTED)
@@ -193,7 +196,7 @@ ReceiveMessage()
             }
         }
 
-        if (WiFi.status() != WL_CONNECTED)
+        if (!create_access_point && WiFi.status() != WL_CONNECTED)
         {
             wifi_state = WifiState::WaitingForWifi;
         }

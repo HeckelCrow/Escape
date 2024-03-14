@@ -108,7 +108,7 @@ SetCommand(TargetsCommand cmd)
         {
             status.hitpoints[i] = cmd.set_hitpoints[i];
         }
-        if (cmd.hitpoints[i] != status.hitpoints[i])
+        else if (cmd.hitpoints[i] != status.hitpoints[i])
         {
             need_resend_status = true;
         }
@@ -192,6 +192,8 @@ loop()
     {
         if (millis() > time_last_state_sent + resend_period)
         {
+            status.ask_for_ack = true;
+
             auto ser = Serializer(SerializerMode::Serialize,
                                   {packet_buffer, udp_packet_size});
 
@@ -224,17 +226,23 @@ loop()
 
             SetCommand(cmd);
 
-            auto ser = Serializer(SerializerMode::Serialize,
-                                  {packet_buffer, udp_packet_size});
+            if (cmd.ask_for_ack)
+            {
+                status.ask_for_ack = false;
 
-            status.getHeader(this_client_id).serialize(ser);
-            status.serialize(ser);
+                auto ser = Serializer(SerializerMode::Serialize,
+                                      {packet_buffer, udp_packet_size});
 
-            udp.beginPacket(server_connection.address, server_connection.port);
-            BufferPtr buffer = {ser.full_buffer.start, ser.buffer.start};
-            udp.write(buffer.start, buffer.end - buffer.start);
-            udp.endPacket();
-            time_last_state_sent = millis();
+                status.getHeader(this_client_id).serialize(ser);
+                status.serialize(ser);
+
+                udp.beginPacket(server_connection.address,
+                                server_connection.port);
+                BufferPtr buffer = {ser.full_buffer.start, ser.buffer.start};
+                udp.write(buffer.start, buffer.end - buffer.start);
+                udp.endPacket();
+                time_last_state_sent = millis();
+            }
         }
         break;
         case MessageType::Reset: { ESP.restart();

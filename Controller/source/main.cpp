@@ -541,7 +541,7 @@ ReceiveMessage(Server& server)
 
 constexpr Duration client_timeout_duration = Milliseconds(1200);
 constexpr Duration heartbeat_period        = Milliseconds(700);
-constexpr Duration command_resend_period   = Milliseconds(200);
+constexpr Duration command_resend_period   = Milliseconds(100);
 
 struct Client
 {
@@ -682,6 +682,25 @@ struct DoorLock
     DoorLock() {}
 
     void
+    receiveMessage(Client& client, const DoorLockStatus& msg)
+    {
+        Print("   LockDoorStatus:\n");
+        Print("   Door {}\n", (msg.lock_door == LockState::Locked) ? "Locked" :
+                              (msg.lock_door == LockState::Open)   ? "Open" :
+                                                                     "SoftLock");
+        Print("   Tree {} ({})\n",
+              (msg.lock_tree == LatchLockState::Unpowered) ? "Unpowered" :
+                                                             "ForceOpen",
+              msg.tree_open_duration);
+        Print("   mordor {}\n",
+              (msg.lock_mordor == LockState::Locked) ? "Locked" :
+              (msg.lock_mordor == LockState::Open)   ? "Open" :
+                                                       "SoftLock");
+
+        last_status = msg;
+    }
+
+    void
     update(Client& client)
     {
         if (ImGui::Begin(utf8("Serrures magnétiques")))
@@ -794,6 +813,49 @@ struct Targets
     Targets() {}
 
     void
+    receiveMessage(Client& client, const TargetsStatus& msg)
+    {
+        Print("   LockDoorStatus:\n");
+        Print("   Enabled {}\n", msg.enabled);
+        u32 i = 0;
+        for (auto& h : msg.hitpoints)
+        {
+            Print("   - Target {} ({}): {} hp\n", i,
+                  (msg.enabled & (1 << i)) ? "Enabled" : "Disabled", h);
+            i++;
+        }
+
+        last_status = msg;
+
+        for (u32 i = 0; i < target_count; i++)
+        {
+            command.hitpoints[i] = last_status.hitpoints[i];
+
+            if (command.set_hitpoints[i] == last_status.hitpoints[i])
+            {
+                // We set the command to -1 only when we received a status
+                // with the right hitpoint value.
+                command.set_hitpoints[i] = -1;
+            }
+        }
+
+        if (msg.ask_for_ack)
+        {
+            command.ask_for_ack      = false;
+            client.time_command_sent = Clock::now();
+
+            std::vector<u8> buffer(udp_packet_size);
+            Serializer      serializer(SerializerMode::Serialize,
+                                       {buffer.data(), (u32)buffer.size()});
+
+            command.getHeader(ClientId::Server).serialize(serializer);
+            command.serialize(serializer);
+
+            SendPacket(client.connection, serializer);
+        }
+    }
+
+    void
     update(Client& client)
     {
         if (ImGui::Begin(utf8("Orques")))
@@ -824,11 +886,8 @@ struct Targets
                 auto hp =
                     DrawOrc(i, command.enable & (1 << i),
                             command.set_hitpoints[i], last_status.hitpoints[i]);
-                if (hp >= 0
-                    || command.set_hitpoints[i] == last_status.hitpoints[i])
+                if (hp >= 0)
                 {
-                    // We set the command to -1 only when we received a status
-                    // with the right hitpoint value.
                     command.set_hitpoints[i] = hp;
                 }
             }
@@ -855,18 +914,7 @@ struct Targets
             {
                 if (client.resendTimeout())
                 {
-                    for (u32 i = 0; i < target_count; i++)
-                    {
-                        if (command.set_hitpoints[i] >= 0)
-                        {
-                            command.hitpoints[i] = command.set_hitpoints[i];
-                        }
-                        else
-                        {
-                            command.hitpoints[i] = last_status.hitpoints[i];
-                        }
-                    }
-
+                    command.ask_for_ack      = true;
                     client.time_command_sent = Clock::now();
 
                     std::vector<u8> buffer(udp_packet_size);
@@ -901,6 +949,16 @@ struct Timer
     Timer()
     {
         last_measure = Clock::now();
+    }
+
+    void
+    receiveMessage(Client& client, const TimerStatus& msg)
+    {
+        Print("   TimerStatus:\n");
+        Print("   Time left {:02}:{:02}\n", msg.time_left / 60,
+              msg.time_left % 60);
+
+        last_status = msg;
     }
 
     void
@@ -1278,22 +1336,8 @@ main()
                 case MessageType::DoorLockStatus: {
                     DoorLockStatus msg;
                     msg.serialize(message.deserializer);
-                    Print("   LockDoorStatus:\n");
-                    Print("   Door {}\n",
-                          (msg.lock_door == LockState::Locked) ? "Locked" :
-                          (msg.lock_door == LockState::Open)   ? "Open" :
-                                                                 "SoftLock");
-                    Print("   Tree {} ({})\n",
-                          (msg.lock_tree == LatchLockState::Unpowered) ?
-                              "Unpowered" :
-                              "ForceOpen",
-                          msg.tree_open_duration);
-                    Print("   mordor {}\n",
-                          (msg.lock_mordor == LockState::Locked) ? "Locked" :
-                          (msg.lock_mordor == LockState::Open)   ? "Open" :
-                                                                   "SoftLock");
 
-                    door_lock.last_status = msg;
+                    door_lock.receiveMessage(client, msg);
                 }
                 break;
 
@@ -1306,18 +1350,7 @@ main()
                 case MessageType::TargetsStatus: {
                     TargetsStatus msg;
                     msg.serialize(message.deserializer);
-                    Print("   LockDoorStatus:\n");
-                    Print("   Enabled {}\n", msg.enabled);
-                    u32 i = 0;
-                    for (auto& h : msg.hitpoints)
-                    {
-                        Print("   - Target {} ({}): {} hp\n", i,
-                              (msg.enabled & (1 << i)) ? "Enabled" : "Disabled",
-                              h);
-                        i++;
-                    }
-
-                    targets.last_status = msg;
+                    targets.receiveMessage(client, msg);
                 }
                 break;
 
@@ -1330,10 +1363,7 @@ main()
                 case MessageType::TimerStatus: {
                     TimerStatus msg;
                     msg.serialize(message.deserializer);
-                    Print("   TimerStatus:\n");
-                    Print("   Time left {:02}:{:02}\n", msg.time_left / 60,
-                          msg.time_left % 60);
-                    timer.last_status = msg;
+                    timer.receiveMessage(client, msg);
                 }
                 break;
 
