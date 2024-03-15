@@ -1270,7 +1270,7 @@ main()
 
     RegisterConsoleCommand(
         "help", {}, std::function([&]() {
-            Print("Command list:");
+            PrintSuccess("Command list:");
             for (auto& cmd : console_commands.commands)
             {
                 Print(cmd.name + " " + Concatenate(cmd.argument_names, " "));
@@ -1288,16 +1288,31 @@ main()
     RegisterConsoleCommand("sethistorysize", {"u32 max_message_count"},
                            std::function([&](u32 max_msg_count) {
                                console.message_max_count = max_msg_count;
-                               Print("console.message_max_count = {}\n",
-                                     console.message_max_count);
+                               PrintSuccess("console.message_max_count = {}\n",
+                                            console.message_max_count);
                            }));
 
     bool show_messages_received = false;
-    RegisterConsoleCommand("showmessages", {"bool show"},
-                           std::function([&](u8 print) {
-                               show_messages_received = print;
-                               Print("show_messages_received = {}\n",
-                                     show_messages_received ? "show" : "hide");
+    RegisterConsoleCommand(
+        "showmessages", {"bool show"}, std::function([&](u8 print) {
+            show_messages_received = print;
+            PrintSuccess("show_messages_received = {}\n",
+                         show_messages_received ? "show" : "hide");
+        }));
+
+    RegisterConsoleCommand("disconectall", {}, std::function([&]() {
+                               for (u64 i = 0; i < clients.size(); i++)
+                               {
+                                   auto& client      = clients[i];
+                                   auto  client_name = client_names[i];
+
+                                   if (client.connected)
+                                   {
+                                       PrintSuccess("[{}] disconnected\n",
+                                                    client_name);
+                                       client.connected = false;
+                                   }
+                               }
                            }));
 
     auto time_start = Clock::now();
