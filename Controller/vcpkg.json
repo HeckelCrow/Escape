@@ -3,6 +3,10 @@
   "version-string": "0.0.1",
   "dependencies": [
     "glfw3",
+    {
+      "name": "glad",
+      "features": [ "gles2-api-20", "gl-api-31" ]
+    },
     "fmt",
     "glm",
     "boost-unordered",

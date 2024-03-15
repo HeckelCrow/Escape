@@ -1,9 +1,5 @@
 ﻿
 add_executable(${proj_name}
-	KHR/khrplatform.h
-	glad/glad.c
-	glad/glad.h
-
 	alias.hpp
 	audio.cpp
 	audio.hpp
@@ -16,6 +12,9 @@ add_executable(${proj_name}
 #Libs
 find_package(glfw3 CONFIG REQUIRED)
 target_link_libraries(${proj_name} PRIVATE glfw)
+
+find_package(glad CONFIG REQUIRED)
+target_link_libraries(${proj_name} PRIVATE glad::glad)
 
 find_package(OpenGL REQUIRED)
 target_link_libraries(${proj_name} PRIVATE OpenGL::GL)
