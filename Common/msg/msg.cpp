@@ -28,9 +28,67 @@ StartWifi(bool access_point)
 
     if (access_point)
     {
+        bool channels_used[12] = {0}; // 1-13
+
+        int n = WiFi.scanNetworks();
+        Serial.println("Scan done");
+        if (n == 0)
+        {
+            Serial.println("no networks found");
+        }
+        else
+        {
+            Serial.print(n);
+            Serial.println(" networks found\n");
+            Serial.println("Nr | SSID                             | RSSI | CH "
+                           "| Encryption");
+            for (int i = 0; i < n; ++i)
+            {
+                // Print SSID and RSSI for each network found
+                Serial.printf("%2d", i + 1);
+                Serial.print(" | ");
+                Serial.printf("%-32.32s", WiFi.SSID(i).c_str());
+                Serial.print(" | ");
+                Serial.printf("%4ld", WiFi.RSSI(i));
+                Serial.print(" | ");
+                Serial.printf("%2ld", WiFi.channel(i));
+                Serial.print(" | ");
+                switch (WiFi.encryptionType(i))
+                {
+                case WIFI_AUTH_OPEN: Serial.print("open"); break;
+                case WIFI_AUTH_WEP: Serial.print("WEP"); break;
+                case WIFI_AUTH_WPA_PSK: Serial.print("WPA"); break;
+                case WIFI_AUTH_WPA2_PSK: Serial.print("WPA2"); break;
+                case WIFI_AUTH_WPA_WPA2_PSK: Serial.print("WPA+WPA2"); break;
+                case WIFI_AUTH_WPA2_ENTERPRISE: Serial.print("WPA2-EAP"); break;
+                case WIFI_AUTH_WPA3_PSK: Serial.print("WPA3"); break;
+                case WIFI_AUTH_WPA2_WPA3_PSK: Serial.print("WPA2+WPA3"); break;
+                case WIFI_AUTH_WAPI_PSK: Serial.print("WAPI"); break;
+                default: Serial.print("unknown");
+                }
+                Serial.println();
+
+                channels_used[WiFi.channel(i) - 1] = true;
+            }
+        }
+        Serial.println("");
+        WiFi.scanDelete();
+
         WiFi.mode(WIFI_AP);
+
+        s32 channel = 1;
+        for (u32 i = 1; i < 13; i++)
+        {
+            if (!channels_used[i - 1])
+            {
+                channel = i;
+                break;
+            }
+        }
+        Serial.printf("Channel %2ld\n", channel);
+
         constexpr s32 max_connection_count = 6;
-        WiFi.softAP(wifi_ssid, wifi_password, 1, 0, max_connection_count);
+        WiFi.softAP(wifi_ssid, wifi_password, channel, 0, max_connection_count);
         wifi_state = WifiState::StartMulticast;
 
         Serial.print(F("IP address: "));
@@ -41,50 +99,6 @@ StartWifi(bool access_point)
         WiFi.begin(wifi_ssid, wifi_password);
         wifi_state = WifiState::WaitingForWifi;
     }
-
-    // int n = WiFi.scanNetworks();
-    // Serial.println("Scan done");
-    // if (n == 0)
-    // {
-    //     Serial.println("no networks found");
-    // }
-    // else
-    // {
-    //     Serial.print(n);
-    //     Serial.println(" networks found");
-    //     Serial.println(
-    //         "Nr | SSID                             | RSSI | CH |
-    //         Encryption");
-    //     for (int i = 0; i < n; ++i)
-    //     {
-    //         // Print SSID and RSSI for each network found
-    //         Serial.printf("%2d", i + 1);
-    //         Serial.print(" | ");
-    //         Serial.printf("%-32.32s", WiFi.SSID(i).c_str());
-    //         Serial.print(" | ");
-    //         Serial.printf("%4ld", WiFi.RSSI(i));
-    //         Serial.print(" | ");
-    //         Serial.printf("%2ld", WiFi.channel(i));
-    //         Serial.print(" | ");
-    //         switch (WiFi.encryptionType(i))
-    //         {
-    //         case WIFI_AUTH_OPEN: Serial.print("open"); break;
-    //         case WIFI_AUTH_WEP: Serial.print("WEP"); break;
-    //         case WIFI_AUTH_WPA_PSK: Serial.print("WPA"); break;
-    //         case WIFI_AUTH_WPA2_PSK: Serial.print("WPA2"); break;
-    //         case WIFI_AUTH_WPA_WPA2_PSK: Serial.print("WPA+WPA2"); break;
-    //         case WIFI_AUTH_WPA2_ENTERPRISE: Serial.print("WPA2-EAP"); break;
-    //         case WIFI_AUTH_WPA3_PSK: Serial.print("WPA3"); break;
-    //         case WIFI_AUTH_WPA2_WPA3_PSK: Serial.print("WPA2+WPA3"); break;
-    //         case WIFI_AUTH_WAPI_PSK: Serial.print("WAPI"); break;
-    //         default: Serial.print("unknown");
-    //         }
-    //         Serial.println();
-    //         delay(10);
-    //     }
-    // }
-    // Serial.println("");
-    // WiFi.scanDelete();
 }
 
 Message

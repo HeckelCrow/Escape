@@ -298,35 +298,4 @@ loop()
 
         renderJPEG(0, 0);
     }
-
-    // delay(4000);
-    // tft.fillScreen(random(0xFFFF));
-    // tft.drawString("Hello", screen_width / 2, 0);
-
-    // s16 rc =
-    //     png.open("/grotte.png", pngOpen, pngClose, pngRead, pngSeek,
-    //     pngDraw);
-
-    // if (rc == PNG_SUCCESS)
-    // {
-    //     tft.startWrite();
-    //     Serial.printf("image specs: (%d x %d), %d bpp, pixel type: %d\n",
-    //                   png.getWidth(), png.getHeight(), png.getBpp(),
-    //                   png.getPixelType());
-    //     uint32_t dt = millis();
-    //     if (png.getWidth() > screen_width)
-    //     {
-    //         Serial.println("Image too wide for allocated line buffer
-    //         size!");
-    //     }
-    //     else
-    //     {
-    //         rc = png.decode(NULL, PNG_FAST_PALETTE);
-    //         png.close();
-    //     }
-    //     tft.endWrite();
-    //     // How long did rendering take...
-    //     Serial.print(millis() - dt);
-    //     Serial.println("ms");
-    // }
 }
