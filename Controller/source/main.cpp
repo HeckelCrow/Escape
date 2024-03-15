@@ -2,6 +2,8 @@
 #include "print.hpp"
 #include "scope_exit.hpp"
 #include "audio.hpp"
+#include "console_commands.hpp"
+#include "console.hpp"
 
 #define utf8(s) (char*)u8##s
 #include <asio.hpp>
@@ -361,12 +363,12 @@ InitServer(Server& server)
               (address->IfType == IF_TYPE_ETHERNET_CSMACD) ? "Ethernet" :
                                                              "Other");
 
-        Print("PhysicalAddress: ");
-        for (u32 i = 0; i < address->PhysicalAddressLength; i++)
-        {
-            Print("{}.", (u8)address->PhysicalAddress[i]);
-        }
-        Print("\n");
+        // Print("PhysicalAddress: ");
+        // for (u32 i = 0; i < address->PhysicalAddressLength; i++)
+        //{
+        //     Print("{}.", (u8)address->PhysicalAddress[i]);
+        // }
+        // Print("\n");
 
         if (address->IfType != IF_TYPE_IEEE80211
             && address->IfType != IF_TYPE_ETHERNET_CSMACD)
@@ -836,7 +838,7 @@ struct Targets
     void
     receiveMessage(Client& client, const TargetsStatus& msg)
     {
-        Print("   LockDoorStatus:\n");
+        Print("   TargetsStatus:\n");
         Print("   Enabled {}\n", msg.enabled);
         u32 i = 0;
         for (auto& h : msg.hitpoints)
@@ -1257,6 +1259,23 @@ main()
             DestroyAudioBuffer(orc);
     });
 
+    RegisterConsoleCommand(
+        "help", {}, std::function([&]() {
+            Print("Command list:");
+            for (auto& cmd : console_commands.commands)
+            {
+                Print(cmd.name + " " + Concatenate(cmd.argument_names, " "));
+            }
+        }));
+    RegisterConsoleCommand("clear", {}, std::function([&]() {
+                               console.messages.clear();
+                               console.messages.shrink_to_fit();
+                           }));
+
+    RegisterConsoleCommand("quit", {}, std::function([&]() {
+                               glfwSetWindowShouldClose(window, true);
+                           }));
+
     auto time_start = Clock::now();
     glfwShowWindow(window);
     while (!glfwWindowShouldClose(window))
@@ -1285,6 +1304,8 @@ main()
 
         glfwPollEvents();
         ImguiStartFrame();
+
+        DrawConsole();
 
         UpdateAudio();
 

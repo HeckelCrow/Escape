@@ -3,6 +3,9 @@ add_executable(${proj_name}
 	alias.hpp
 	audio.cpp
 	audio.hpp
+	console.cpp
+	console.hpp
+	console_commands.hpp
 	imgui_config.hpp
 	main.cpp
 	print.hpp
