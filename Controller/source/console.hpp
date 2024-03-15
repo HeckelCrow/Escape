@@ -27,7 +27,7 @@ struct Console
     u32              history_index;
     Str              buffered_command;
 
-    bool open = true;
+    bool open = false;
 };
 
 extern Console console;

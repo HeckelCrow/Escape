@@ -705,21 +705,24 @@ struct DoorLock
     DoorLock() {}
 
     void
-    receiveMessage(Client& client, const DoorLockStatus& msg)
+    receiveMessage(Client& client, const DoorLockStatus& msg, bool print)
     {
-        Print("   LockDoorStatus:\n");
-        Print("   Door {}\n", (msg.lock_door == LockState::Locked) ? "Locked" :
-                              (msg.lock_door == LockState::Open)   ? "Open" :
-                                                                     "SoftLock");
-        Print("   Tree {} ({})\n",
-              (msg.lock_tree == LatchLockState::Unpowered) ? "Unpowered" :
-                                                             "ForceOpen",
-              msg.tree_open_duration);
-        Print("   mordor {}\n",
-              (msg.lock_mordor == LockState::Locked) ? "Locked" :
-              (msg.lock_mordor == LockState::Open)   ? "Open" :
-                                                       "SoftLock");
-
+        if (print)
+        {
+            Print("   LockDoorStatus:\n");
+            Print("   Door {}\n",
+                  (msg.lock_door == LockState::Locked) ? "Locked" :
+                  (msg.lock_door == LockState::Open)   ? "Open" :
+                                                         "SoftLock");
+            Print("   Tree {} ({})\n",
+                  (msg.lock_tree == LatchLockState::Unpowered) ? "Unpowered" :
+                                                                 "ForceOpen",
+                  msg.tree_open_duration);
+            Print("   mordor {}\n",
+                  (msg.lock_mordor == LockState::Locked) ? "Locked" :
+                  (msg.lock_mordor == LockState::Open)   ? "Open" :
+                                                           "SoftLock");
+        }
         last_status = msg;
     }
 
@@ -836,18 +839,20 @@ struct Targets
     Targets() {}
 
     void
-    receiveMessage(Client& client, const TargetsStatus& msg)
+    receiveMessage(Client& client, const TargetsStatus& msg, bool print)
     {
-        Print("   TargetsStatus:\n");
-        Print("   Enabled {}\n", msg.enabled);
-        u32 i = 0;
-        for (auto& h : msg.hitpoints)
+        if (print)
         {
-            Print("   - Target {} ({}): {} hp\n", i,
-                  (msg.enabled & (1 << i)) ? "Enabled" : "Disabled", h);
-            i++;
+            Print("   TargetsStatus:\n");
+            Print("   Enabled {}\n", msg.enabled);
+            u32 i = 0;
+            for (auto& h : msg.hitpoints)
+            {
+                Print("   - Target {} ({}): {} hp\n", i,
+                      (msg.enabled & (1 << i)) ? "Enabled" : "Disabled", h);
+                i++;
+            }
         }
-
         last_status = msg;
 
         for (u32 i = 0; i < target_count; i++)
@@ -976,12 +981,14 @@ struct Timer
     }
 
     void
-    receiveMessage(Client& client, const TimerStatus& msg)
+    receiveMessage(Client& client, const TimerStatus& msg, bool print)
     {
-        Print("   TimerStatus:\n");
-        Print("   Time left {:02}:{:02}\n", msg.time_left / 1000 / 60,
-              msg.time_left / 1000 % 60);
-
+        if (print)
+        {
+            Print("   TimerStatus:\n");
+            Print("   Time left {:02}:{:02}\n", msg.time_left / 1000 / 60,
+                  msg.time_left / 1000 % 60);
+        }
         last_status = msg;
     }
 
@@ -1102,11 +1109,13 @@ struct RingDispenser
     RingDispenser() {}
 
     void
-    receiveMessage(Client& client, const RingDispenserStatus& msg)
+    receiveMessage(Client& client, const RingDispenserStatus& msg, bool print)
     {
-        Print("   RingDispenser:\n");
-        Print("   Activated: {}\n", msg.activated ? "True" : "False");
-
+        if (print)
+        {
+            Print("   RingDispenser:\n");
+            Print("   Activated: {}\n", msg.activated ? "True" : "False");
+        }
         last_status = msg;
     }
 
@@ -1276,11 +1285,19 @@ main()
                                glfwSetWindowShouldClose(window, true);
                            }));
 
-    RegisterConsoleCommand("sethistorysize", {"max message count"},
-                           std::function([&](f32 max_msg_count) {
+    RegisterConsoleCommand("sethistorysize", {"u32 max_message_count"},
+                           std::function([&](u32 max_msg_count) {
                                console.message_max_count = max_msg_count;
                                Print("console.message_max_count = {}\n",
                                      console.message_max_count);
+                           }));
+
+    bool show_messages_received = false;
+    RegisterConsoleCommand("showmessages", {"bool show"},
+                           std::function([&](u8 print) {
+                               show_messages_received = print;
+                               Print("show_messages_received = {}\n",
+                                     show_messages_received ? "show" : "hide");
                            }));
 
     auto time_start = Clock::now();
@@ -1400,7 +1417,7 @@ main()
                           message.from.endpoint.address().to_string(),
                           message.from.endpoint.port());
                 }
-                else
+                else if (show_messages_received)
                 {
                     Print("{} [{}]:\n",
                           DurationToString(Clock::now() - time_start),
@@ -1460,7 +1477,8 @@ main()
                     DoorLockStatus msg;
                     msg.serialize(message.deserializer);
 
-                    door_lock.receiveMessage(client, msg);
+                    door_lock.receiveMessage(client, msg,
+                                             show_messages_received);
                 }
                 break;
 
@@ -1473,7 +1491,7 @@ main()
                 case MessageType::TargetsStatus: {
                     TargetsStatus msg;
                     msg.serialize(message.deserializer);
-                    targets.receiveMessage(client, msg);
+                    targets.receiveMessage(client, msg, show_messages_received);
                 }
                 break;
 
@@ -1486,7 +1504,7 @@ main()
                 case MessageType::TimerStatus: {
                     TimerStatus msg;
                     msg.serialize(message.deserializer);
-                    timer.receiveMessage(client, msg);
+                    timer.receiveMessage(client, msg, show_messages_received);
                 }
                 break;
 
@@ -1500,7 +1518,8 @@ main()
                 case MessageType::RingDispenserStatus: {
                     RingDispenserStatus msg;
                     msg.serialize(message.deserializer);
-                    ring_dispenser.receiveMessage(client, msg);
+                    ring_dispenser.receiveMessage(client, msg,
+                                                  show_messages_received);
                 }
                 break;
 
