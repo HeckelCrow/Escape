@@ -21,6 +21,7 @@ struct Console
     std::vector<std::pair<Str, Str>> matching_commands;
 
     std::vector<ConsoleMessage> messages;
+    u32                         message_max_count = 500;
 
     std::vector<Str> history;
     u32              history_index;

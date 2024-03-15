@@ -117,6 +117,14 @@ DrawConsole()
         grab_focus   = true;
     }
 
+    if (console.messages.size() > console.message_max_count)
+    {
+        console.messages.erase(console.messages.begin(),
+                               console.messages.begin()
+                                   + console.messages.size()
+                                   - console.message_max_count);
+    }
+
     if (!console.open)
         return;
 

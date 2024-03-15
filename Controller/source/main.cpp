@@ -1276,6 +1276,13 @@ main()
                                glfwSetWindowShouldClose(window, true);
                            }));
 
+    RegisterConsoleCommand("sethistorysize", {"max message count"},
+                           std::function([&](f32 max_msg_count) {
+                               console.message_max_count = max_msg_count;
+                               Print("console.message_max_count = {}\n",
+                                     console.message_max_count);
+                           }));
+
     auto time_start = Clock::now();
     glfwShowWindow(window);
     while (!glfwWindowShouldClose(window))
