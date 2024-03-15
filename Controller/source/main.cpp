@@ -116,6 +116,11 @@ OpenWindow()
 
     glfwWindowHint(GLFW_VISIBLE, false);
 
+    glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_ANY_PROFILE);
+
     GLFWwindow* window = glfwCreateWindow(window_size.x, window_size.y,
                                           "Escape Game", nullptr, nullptr);
     if (!window)
@@ -139,13 +144,17 @@ OpenWindow()
     // glfwSetMouseButtonCallback(window, GlfwMouseButtonCallback);
     // glfwSetScrollCallback(window, GlfwScrollCallback);
 
-    if (gladLoadGL())
+    if (gladLoadGLES2Loader((GLADloadproc)glfwGetProcAddress))
     {
-        Print("OpenGL {}.{}\n", GLVersion.major, GLVersion.minor);
+        Print("OpenGL ES {}.{}\n", GLVersion.major, GLVersion.minor);
     }
+    // if (gladLoadGL())
+    //{
+    //     Print("OpenGL  {}.{}\n", GLVersion.major, GLVersion.minor);
+    // }
     else
     {
-        PrintError("gladLoadGL failed.\n");
+        PrintError("gladLoadGLES2Loader failed.\n");
     }
 
     return window;
@@ -187,7 +196,8 @@ InitImgui(GLFWwindow* window)
     io.IniFilename       = ini_path.c_str();
 
     ImGui_ImplGlfw_InitForOpenGL(window, true);
-    ImGui_ImplOpenGL3_Init("#version 330");
+    // ImGui_ImplOpenGL3_Init("#version 330");
+    ImGui_ImplOpenGL3_Init("#version 100");
 }
 
 void
@@ -1411,6 +1421,7 @@ main()
                     }
                 }
                 break;
+
                 case MessageType::DoorLockCommand: {
                     PrintWarning("Server received a LockDoorCommand message\n");
                     DoorLockCommand msg;
