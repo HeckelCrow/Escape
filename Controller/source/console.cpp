@@ -128,7 +128,11 @@ DrawConsole()
     if (!console.open)
         return;
 
-    ImGui::Begin("Console", &console.open);
+    if (!ImGui::Begin("Console", &console.open))
+    {
+        ImGui::End();
+        return;
+    }
 
     // Reserve enough left-over height for 1 separator + 1 input text
     const float footer_height_to_reserve =

@@ -4,6 +4,7 @@
 #include "audio.hpp"
 #include "console_commands.hpp"
 #include "console.hpp"
+#include "serial_port.hpp"
 
 #define utf8(s) (char*)u8##s
 #include <asio.hpp>
@@ -11,7 +12,7 @@
 // #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 // #define NOUSER
-#include <Windows.h> // Asio error message conversion
+#include <Windows.h>
 #include <iphlpapi.h>
 #pragma comment(lib, "IPHLPAPI.lib")
 
@@ -146,14 +147,14 @@ OpenWindow()
     // glfwSetMouseButtonCallback(window, GlfwMouseButtonCallback);
     // glfwSetScrollCallback(window, GlfwScrollCallback);
 
-    if (gladLoadGLES2Loader((GLADloadproc)glfwGetProcAddress))
-    {
-        Print("OpenGL ES {}.{}\n", GLVersion.major, GLVersion.minor);
-    }
-    // if (gladLoadGL())
+    // if (gladLoadGLES2Loader((GLADloadproc)glfwGetProcAddress))
     //{
-    //     Print("OpenGL  {}.{}\n", GLVersion.major, GLVersion.minor);
+    //     Print("OpenGL ES {}.{}\n", GLVersion.major, GLVersion.minor);
     // }
+    if (gladLoadGL())
+    {
+        Print("OpenGL  {}.{}\n", GLVersion.major, GLVersion.minor);
+    }
     else
     {
         PrintError("gladLoadGLES2Loader failed.\n");
@@ -1315,6 +1316,26 @@ main()
                                }
                            }));
 
+    RegisterConsoleCommand("listserialports", {},
+                           std::function([&]() { ListSerialPorts(); }));
+
+    bool               listen_to_serial_ports = false;
+    constexpr Duration serial_scan_period     = Seconds(1);
+    RegisterConsoleCommand(
+        "serial", {"bool listen"}, std::function([&](u8 listen) {
+            listen_to_serial_ports = listen;
+            PrintSuccess("listen_to_serial_ports = {}\n",
+                         listen_to_serial_ports ? "true" : "false");
+            if (listen)
+            {
+                InitSerial();
+            }
+            else
+            {
+                TerminateSerial();
+            }
+        }));
+
     auto time_start = Clock::now();
     glfwShowWindow(window);
     while (!glfwWindowShouldClose(window))
@@ -1347,6 +1368,18 @@ main()
         DrawConsole();
 
         UpdateAudio();
+
+        if (listen_to_serial_ports)
+        {
+            static Timepoint next_serial_scan = Clock::now();
+            bool             do_scan          = false;
+            if (Clock::now() >= next_serial_scan)
+            {
+                next_serial_scan = Clock::now() + serial_scan_period;
+                do_scan          = true;
+            }
+            UpdateSerial(do_scan);
+        }
 
         static bool show_demo = false;
         if (show_demo)

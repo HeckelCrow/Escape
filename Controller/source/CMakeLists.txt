@@ -1,5 +1,8 @@
 ﻿
 add_executable(${proj_name}
+	CEnumerateSerial/enumser.cpp
+	CEnumerateSerial/enumser.h
+
 	alias.hpp
 	audio.cpp
 	audio.hpp
@@ -10,6 +13,8 @@ add_executable(${proj_name}
 	main.cpp
 	print.hpp
 	scope_exit.hpp
+	serial_port.cpp
+	serial_port.hpp
 )
 
 #Libs
