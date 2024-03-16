@@ -56,6 +56,8 @@ void
 setup()
 {
     Serial.begin(SERIAL_BAUD_RATE);
+    delay(1000);
+    Serial.println(F("Hello"));
 
     if (!i2c.setPins(I2C_SDA, I2C_SCL))
     {
@@ -97,7 +99,7 @@ setup()
         adc.curr_request = 0;
     }
 
-    Serial.println("Start wifi");
+    Serial.println(F("Start wifi"));
     StartWifi(true);
 }
 
@@ -211,6 +213,12 @@ loop()
         }
     }
 
+    while (Serial.available())
+    {
+        char c = (char)Serial.read();
+        Serial.print(c);
+    }
+
     constexpr u32 receive_message_period = 50;
     static u32    next_receive_message   = millis();
     if (millis() >= next_receive_message)
@@ -253,23 +261,23 @@ loop()
         break;
         }
     }
-    // for (u8 j = 0; j < adc_count; j++)
-    // {
-    //     auto& adc = adcs[j];
-    //     if (adc.ads.isReady())
-    //     {
-    //         s16 value = adc.ads.getValue();
-    //         NewSample(adc.channels[adc.curr_request], value);
+    for (u8 j = 0; j < adc_count; j++)
+    {
+        auto& adc = adcs[j];
+        if (adc.ads.isReady())
+        {
+            s16 value = adc.ads.getValue();
+            NewSample(adc.channels[adc.curr_request], value);
 
-    //         adc.curr_request = adc.curr_request ? 0 : 1;
-    //         if (adc.curr_request)
-    //         {
-    //             adc.ads.requestADC_Differential_2_3();
-    //         }
-    //         else
-    //         {
-    //             adc.ads.requestADC_Differential_0_1();
-    //         }
-    //     }
-    // }
+            adc.curr_request = adc.curr_request ? 0 : 1;
+            if (adc.curr_request)
+            {
+                adc.ads.requestADC_Differential_2_3();
+            }
+            else
+            {
+                adc.ads.requestADC_Differential_0_1();
+            }
+        }
+    }
 }

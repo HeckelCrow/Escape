@@ -200,6 +200,51 @@ TerminateSerial()
 }
 
 void
+DrawSerial(SerialPort& port)
+{
+    if (!ImGui::BeginTabItem(port.name.c_str()))
+        return;
+    // Reserve enough left-over height for 1 separator + 1 input text
+    const float footer_height_to_reserve = ImGui::GetFrameHeightWithSpacing();
+    ImGui::BeginChild("ScrollingRegion", ImVec2(0, -footer_height_to_reserve));
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing,
+                        ImVec2(4, 1)); // Tighten spacing
+
+    for (const auto& str : port.history)
+    {
+        ImGui::TextUnformatted(str.data());
+    }
+
+    if (ImGui::GetScrollY() >= ImGui::GetScrollMaxY())
+        ImGui::SetScrollHereY(1.0f);
+
+    ImGui::PopStyleVar();
+    ImGui::EndChild();
+
+    ImGuiInputTextFlags input_text_flags = ImGuiInputTextFlags_EnterReturnsTrue;
+
+    bool grab_focus = false;
+    ImGui::PushItemWidth(-1);
+    if (ImGui::InputText("##ConsoleInput", port.input_buffer.data(),
+                         port.input_buffer.size(), input_text_flags))
+    {
+        StrPtr command = port.input_buffer.data();
+
+        WriteSerial(port, command);
+        WriteSerial(port, "\n");
+
+        port.input_buffer[0] = '\0';
+        grab_focus           = true;
+    }
+    ImGui::PopItemWidth();
+
+    if (grab_focus)
+        ImGui::SetKeyboardFocusHere(-1);
+
+    ImGui::EndTabItem();
+}
+
+void
 UpdateSerial(bool scan_ports)
 {
     if (scan_ports)
@@ -258,15 +303,7 @@ UpdateSerial(bool scan_ports)
                 }
             }
 
-            if (!ImGui::BeginTabItem(port.name.c_str()))
-                continue;
-
-            for (const auto& str : port.history)
-            {
-                ImGui::TextWrapped(str.data());
-            }
-
-            ImGui::EndTabItem();
+            DrawSerial(port);
         }
         ImGui::EndTabBar();
     }
