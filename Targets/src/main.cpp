@@ -13,6 +13,9 @@ constexpr u8 I2C_SCL = 1;
 #elif WROOM
 constexpr u8 I2C_SDA = 32;
 constexpr u8 I2C_SCL = 33;
+#elif ESP32S3
+constexpr u8 I2C_SDA = 4;
+constexpr u8 I2C_SCL = 5;
 #endif
 
 TwoWire i2c = TwoWire(0);
@@ -250,23 +253,23 @@ loop()
         break;
         }
     }
-    for (u8 j = 0; j < adc_count; j++)
-    {
-        auto& adc = adcs[j];
-        if (adc.ads.isReady())
-        {
-            s16 value = adc.ads.getValue();
-            NewSample(adc.channels[adc.curr_request], value);
+    // for (u8 j = 0; j < adc_count; j++)
+    // {
+    //     auto& adc = adcs[j];
+    //     if (adc.ads.isReady())
+    //     {
+    //         s16 value = adc.ads.getValue();
+    //         NewSample(adc.channels[adc.curr_request], value);
 
-            adc.curr_request = adc.curr_request ? 0 : 1;
-            if (adc.curr_request)
-            {
-                adc.ads.requestADC_Differential_2_3();
-            }
-            else
-            {
-                adc.ads.requestADC_Differential_0_1();
-            }
-        }
-    }
+    //         adc.curr_request = adc.curr_request ? 0 : 1;
+    //         if (adc.curr_request)
+    //         {
+    //             adc.ads.requestADC_Differential_2_3();
+    //         }
+    //         else
+    //         {
+    //             adc.ads.requestADC_Differential_0_1();
+    //         }
+    //     }
+    // }
 }
