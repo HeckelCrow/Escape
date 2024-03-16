@@ -144,7 +144,7 @@ CloseSerialPort(SerialPort& h)
 }
 
 Str
-ReadSerial(SerialPort h)
+ReadSerial(SerialPort& h)
 {
     Str   message;
     char  c = 0;
@@ -161,6 +161,7 @@ ReadSerial(SerialPort h)
         else
         {
             Print("ReadFile failed 0x{:X}\n", GetLastError());
+            CloseSerialPort(h);
         }
     } while (read > 0);
 
@@ -168,7 +169,7 @@ ReadSerial(SerialPort h)
 }
 
 void
-WriteSerial(SerialPort h, StrPtr message)
+WriteSerial(SerialPort& h, StrPtr message)
 {
     while (message.size())
     {
@@ -181,6 +182,7 @@ WriteSerial(SerialPort h, StrPtr message)
         else
         {
             Print("WriteFile failed\n");
+            CloseSerialPort(h);
         }
     }
 }
@@ -247,6 +249,9 @@ DrawSerial(SerialPort& port)
 void
 UpdateSerial(bool scan_ports)
 {
+    std::erase_if(serial_manager.ports,
+                  [](SerialPort& port) { return port.handle == nullptr; });
+
     if (scan_ports)
     {
         CEnumerateSerial::CNamesArray new_ports;
