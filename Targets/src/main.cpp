@@ -4,6 +4,7 @@
 #include "message_targets.hpp"
 
 #include <ADS1X15.h>
+#include <FastLED.h>
 
 ClientId this_client_id = ClientId::Targets;
 
@@ -16,6 +17,8 @@ constexpr u8 I2C_SCL = 33;
 #elif ESP32S3
 constexpr u8 I2C_SDA = 4;
 constexpr u8 I2C_SCL = 5;
+
+constexpr u8 LED_OUT = 48;
 #endif
 
 TwoWire i2c = TwoWire(0);
@@ -52,10 +55,15 @@ bool          need_resend_status   = false;
 constexpr u32 resend_period        = 100;
 u32           time_last_state_sent = 0;
 
+CRGB led_color;
+
 void
 setup()
 {
     Serial.begin(SERIAL_BAUD_RATE);
+
+    FastLED.addLeds<NEOPIXEL, LED_OUT>(&led_color, 1);
+
     delay(1000);
     Serial.println(F("Hello"));
 
@@ -84,7 +92,7 @@ setup()
             continue;
         }
         /*
-         *  Gain index    Max Voltage
+         *  Gain index   Max Voltage
          *  0 	         ±6.144V
          *  1 	         ±4.096V
          *  2 	         ±2.048V
@@ -193,6 +201,15 @@ NewSample(AdcChannel& ch, s16 value)
 void
 loop()
 {
+    constexpr u32 led_update_period = 1000 / 60;
+    static u32    next_led_update   = millis();
+    if (millis() > next_led_update)
+    {
+        next_led_update += led_update_period;
+        led_color = CRGB(CHSV(beatsin16(4, 0, 255), 255, 255));
+        FastLED.show();
+    }
+
     if (need_resend_status)
     {
         if (millis() > time_last_state_sent + resend_period)
@@ -211,12 +228,6 @@ loop()
             udp.endPacket();
             time_last_state_sent = millis();
         }
-    }
-
-    while (Serial.available())
-    {
-        char c = (char)Serial.read();
-        Serial.print(c);
     }
 
     constexpr u32 receive_message_period = 50;
@@ -259,6 +270,12 @@ loop()
         case MessageType::Reset: { ESP.restart();
         }
         break;
+        }
+
+        while (Serial.available())
+        {
+            char c = (char)Serial.read();
+            Serial.print(c);
         }
     }
     for (u8 j = 0; j < adc_count; j++)

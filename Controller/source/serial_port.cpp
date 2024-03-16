@@ -225,7 +225,7 @@ DrawSerial(SerialPort& port)
 
     bool grab_focus = false;
     ImGui::PushItemWidth(-1);
-    if (ImGui::InputText("##ConsoleInput", port.input_buffer.data(),
+    if (ImGui::InputText("##SerialInput", port.input_buffer.data(),
                          port.input_buffer.size(), input_text_flags))
     {
         StrPtr command = port.input_buffer.data();
