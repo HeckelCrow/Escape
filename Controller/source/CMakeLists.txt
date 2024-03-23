@@ -15,6 +15,8 @@ add_executable(${proj_name}
 	scope_exit.hpp
 	serial_port.cpp
 	serial_port.hpp
+	server.cpp
+	server.hpp
 )
 
 #Libs
