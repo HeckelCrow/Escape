@@ -1,7 +1,12 @@
 #pragma once
 #include "message_format.hpp"
 
-constexpr u32 activation_duration = 3000;
+enum class RingDispenserState
+{
+    DetectRings,
+    ForceDeactivate,
+    ForceActivate,
+};
 
 struct RingDispenserCommand
 {
@@ -15,10 +20,14 @@ struct RingDispenserCommand
     void
     serialize(Serializer& s)
     {
-        Serialize(activate, s);
+        Serialize(ask_for_ack, s);
+        Serialize(state, s);
+        Serialize(rings_detected, s);
     }
 
-    u8 activate = 0;
+    u8                 ask_for_ack    = 0;
+    RingDispenserState state          = RingDispenserState::DetectRings;
+    u32                rings_detected = 0;
 };
 
 struct RingDispenserStatus
@@ -33,7 +42,12 @@ struct RingDispenserStatus
     void
     serialize(Serializer& s)
     {
-        Serialize(activated, s);
+        Serialize(ask_for_ack, s);
+        Serialize(state, s);
+        Serialize(rings_detected, s);
     }
-    u8 activated = 0;
+
+    u8                 ask_for_ack    = 0;
+    RingDispenserState state          = RingDispenserState::DetectRings;
+    u32                rings_detected = 0;
 };
