@@ -143,7 +143,7 @@ InitServer(Server& server)
     asio::error_code error;
     for (auto& endpoint : endpoints)
     {
-        server.sockets.push_back(std::make_unique<Socket>(server.io_context));
+        server.sockets.push_back(std::make_shared<Socket>(server.io_context));
         auto socket = server.sockets.back().get();
         socket->open(asio::ip::udp::v4(), error);
         if (error)
@@ -276,7 +276,7 @@ ReceiveMessage(Server& server)
                     Serializer(SerializerMode::Deserialize,
                                BufferPtr{server.buffer.data(), (u32)size});
                 msg.header.serialize(msg.deserializer);
-                msg.from.socket = socket.get();
+                msg.from.socket = socket;
             }
             break;
         }

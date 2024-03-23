@@ -7,7 +7,7 @@
 #include "serial_port.hpp"
 #include "server.hpp"
 
-#define utf8(s) (char*)u8##s
+#define utf8(s) (const char*)u8##s
 
 // #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
@@ -30,6 +30,7 @@
 #include "msg/message_targets.hpp"
 #include "msg/message_timer.hpp"
 #include "msg/message_ring_dispenser.hpp"
+#include "msg/wifi_config.hpp"
 
 using Clock     = std::chrono::high_resolution_clock;
 using Timepoint = std::chrono::time_point<Clock>;
@@ -1165,6 +1166,14 @@ main()
                     Print("{} port {}\n",
                           message.from.endpoint.address().to_string(),
                           message.from.endpoint.port());
+
+                    if (server.sockets.size() > 1)
+                    {
+                        // We found the right socket, we keep it and close the
+                        // other ones.
+                        server.sockets[0] = message.from.socket;
+                        server.sockets.resize(1);
+                    }
                 }
                 else if (show_messages_received)
                 {
@@ -1284,6 +1293,7 @@ main()
             }
         }
 
+        u32 clients_connected_count = 0;
         for (u64 i = 0; i < clients.size(); i++)
         {
             auto& client      = clients[i];
@@ -1301,13 +1311,31 @@ main()
 
             if (!client.connected)
                 continue;
-
             if (client.timeout())
             {
                 PrintWarning("[{}] timed out\n", client_name);
                 client.connected = false;
                 continue;
             }
+            clients_connected_count++;
+        }
+        if (clients_connected_count == 0)
+        {
+            ImGui::Begin(utf8("Initialisation"));
+            auto str = fmt::format(
+                fmt::runtime(utf8("Connectez vous au réseau wifi \"{}\" avec "
+                                  "le mot de passe \"{}\".\n")),
+                wifi_ssid, wifi_password);
+            ImGui::TextWrapped(str.c_str());
+            ImGui::TextWrapped(
+                utf8("Si ça ne marche pas, appuyez sur réessayer."));
+            if (ImGui::Button(utf8("Réessayer")))
+            {
+                PrintSuccess("Reset server\n");
+                TerminateServer(server);
+                InitServer(server);
+            }
+            ImGui::End();
         }
 
         ImguiEndFrame();
