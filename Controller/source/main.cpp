@@ -1281,7 +1281,8 @@ main()
                         server.sockets.resize(1);
                     }
                 }
-                else if (show_messages_received)
+                else if (show_messages_received
+                         || message.header.type == MessageType::Log)
                 {
                     Print("{} [{}]:\n",
                           DurationToString(Clock::now() - time_start),
