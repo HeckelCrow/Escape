@@ -488,7 +488,7 @@ struct DoorLock
                     Serializer      serializer(SerializerMode::Serialize,
                                                {buffer.data(), (u32)buffer.size()});
 
-                    command.getHeader(ClientId::Server).serialize(serializer);
+                    command.getHeader().serialize(serializer);
                     command.serialize(serializer);
 
                     SendPacket(client.connection, serializer);
@@ -578,7 +578,7 @@ struct Targets
             Serializer      serializer(SerializerMode::Serialize,
                                        {buffer.data(), (u32)buffer.size()});
 
-            command.getHeader(ClientId::Server).serialize(serializer);
+            command.getHeader().serialize(serializer);
             command.serialize(serializer);
 
             SendPacket(client.connection, serializer);
@@ -651,7 +651,7 @@ struct Targets
                     Serializer      serializer(SerializerMode::Serialize,
                                                {buffer.data(), (u32)buffer.size()});
 
-                    command.getHeader(ClientId::Server).serialize(serializer);
+                    command.getHeader().serialize(serializer);
                     command.serialize(serializer);
 
                     SendPacket(client.connection, serializer);
@@ -789,7 +789,7 @@ struct Timer
                     Serializer      serializer(SerializerMode::Serialize,
                                                {buffer.data(), (u32)buffer.size()});
 
-                    command.getHeader(ClientId::Server).serialize(serializer);
+                    command.getHeader().serialize(serializer);
                     command.serialize(serializer);
 
                     SendPacket(client.connection, serializer);
@@ -845,7 +845,7 @@ struct RingDispenser
             Serializer      serializer(SerializerMode::Serialize,
                                        {buffer.data(), (u32)buffer.size()});
 
-            command.getHeader(ClientId::Server).serialize(serializer);
+            command.getHeader().serialize(serializer);
             command.serialize(serializer);
 
             SendPacket(client.connection, serializer);
@@ -981,7 +981,7 @@ struct RingDispenser
                     Serializer      serializer(SerializerMode::Serialize,
                                                {buffer.data(), (u32)buffer.size()});
 
-                    command.getHeader(ClientId::Server).serialize(serializer);
+                    command.getHeader().serialize(serializer);
                     command.serialize(serializer);
 
                     SendPacket(client.connection, serializer);
