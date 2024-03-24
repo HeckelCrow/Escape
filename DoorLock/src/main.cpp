@@ -214,6 +214,7 @@ loop()
         digitalWrite(MAGLOCK_DOOR, 0);
         digitalWrite(MAGLOCK_MORDOR, 0);
         digitalWrite(LATCHLOCK_OUT, 0);
+        delay(1000);
         ESP.restart();
     }
     break;

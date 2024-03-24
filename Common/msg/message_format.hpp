@@ -241,7 +241,7 @@ struct LogMessage
     LogMessage() {}
 
     MessageHeader
-    getHeader(ClientId client_id)
+    getHeader()
     {
         return MessageHeader{MessageType::Log};
     }

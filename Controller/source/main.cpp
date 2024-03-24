@@ -1123,6 +1123,35 @@ main()
                                    }
                                }
                            }));
+    RegisterConsoleCommand(
+        "resetall", {}, std::function([&]() {
+            for (u64 i = 0; i < clients.size(); i++)
+            {
+                auto& client      = clients[i];
+                auto  client_name = client_names[i];
+
+                if (client.connection.socket)
+                {
+                    client.time_command_sent = Clock::now();
+
+                    std::vector<u8> buffer(udp_packet_size);
+                    Serializer      serializer(SerializerMode::Serialize,
+                                               {buffer.data(), (u32)buffer.size()});
+
+                    Reset msg;
+                    msg.getHeader().serialize(serializer);
+                    msg.serialize(serializer);
+
+                    SendPacket(client.connection, serializer);
+                }
+
+                if (client.connected)
+                {
+                    PrintSuccess("Reset [{}]\n", client_name);
+                    client.connected = false;
+                }
+            }
+        }));
 
     RegisterConsoleCommand("listserialports", {},
                            std::function([&]() { ListSerialPorts(); }));
