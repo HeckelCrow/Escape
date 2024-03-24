@@ -6,7 +6,7 @@ struct TimerCommand
     TimerCommand() {}
 
     MessageHeader
-    getHeader(ClientId client_id)
+    getHeader()
     {
         return MessageHeader{MessageType::TimerCommand};
     }
@@ -26,7 +26,7 @@ struct TimerStatus
     TimerStatus() {}
 
     MessageHeader
-    getHeader(ClientId client_id)
+    getHeader()
     {
         return MessageHeader{MessageType::TimerStatus};
     }

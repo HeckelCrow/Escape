@@ -199,7 +199,7 @@ loop()
         auto ser = Serializer(SerializerMode::Serialize,
                               {packet_buffer, udp_packet_size});
 
-        status.getHeader(this_client_id).serialize(ser);
+        status.getHeader().serialize(ser);
 
         status.serialize(ser);
 

@@ -80,7 +80,7 @@ loop()
             auto ser           = Serializer(SerializerMode::Serialize,
                                   {packet_buffer, udp_packet_size});
 
-            status.getHeader(this_client_id).serialize(ser);
+            status.getHeader().serialize(ser);
             status.serialize(ser);
 
             udp.beginPacket(server_connection.address, server_connection.port);
@@ -145,7 +145,7 @@ loop()
         auto ser = Serializer(SerializerMode::Serialize,
                               {packet_buffer, udp_packet_size});
 
-        status.getHeader(this_client_id).serialize(ser);
+        status.getHeader().serialize(ser);
         status.serialize(ser);
 
         udp.beginPacket(server_connection.address, server_connection.port);
@@ -164,7 +164,7 @@ loop()
             LogMessage log = {};
             log.severity   = LogSeverity::Info;
             log.string     = {(u8*)str, strlen(str)};
-            log.getHeader(this_client_id).serialize(ser);
+            log.getHeader().serialize(ser);
             log.serialize(ser);
 
             udp.beginPacket(server_connection.address, server_connection.port);

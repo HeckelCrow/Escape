@@ -101,7 +101,7 @@ loop()
         auto ser = Serializer(SerializerMode::Serialize,
                               {packet_buffer, udp_packet_size});
 
-        status.getHeader(this_client_id).serialize(ser);
+        status.getHeader().serialize(ser);
         status.serialize(ser);
 
         udp.beginPacket(server_connection.address, server_connection.port);
@@ -177,7 +177,7 @@ loop()
             //     auto len = sprintf(str_buffer, "%02d:%02d", minutes,
             //     seconds); LogMessage msg   = {}; msg.string.start =
             //     (u8*)str_buffer; msg.string.end   = (u8*)(str_buffer + len);
-            //     msg.getHeader(this_client_id).serialize(ser);
+            //     msg.getHeader().serialize(ser);
             //     msg.serialize(ser);
 
             //     udp.beginPacket(server_connection.address,

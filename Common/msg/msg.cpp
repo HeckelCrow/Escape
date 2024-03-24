@@ -187,7 +187,7 @@ ReceiveMessage()
                     LogMessage  log = {};
                     log.severity    = LogSeverity::Info;
                     log.string      = {(u8*)txt, strlen(txt)};
-                    log.getHeader(this_client_id).serialize(ser);
+                    log.getHeader().serialize(ser);
                     log.serialize(ser);
 
                     udp.beginPacket(server_connection.address,

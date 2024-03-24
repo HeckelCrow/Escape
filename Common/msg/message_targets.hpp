@@ -14,7 +14,7 @@ struct TargetsCommand
     }
 
     MessageHeader
-    getHeader(ClientId client_id)
+    getHeader()
     {
         return MessageHeader{MessageType::TargetsCommand};
     }
@@ -48,7 +48,7 @@ struct TargetsStatus
     TargetsStatus() {}
 
     MessageHeader
-    getHeader(ClientId client_id)
+    getHeader()
     {
         return MessageHeader{MessageType::TargetsStatus};
     }

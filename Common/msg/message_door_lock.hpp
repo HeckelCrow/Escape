@@ -22,7 +22,7 @@ struct DoorLockCommand
     DoorLockCommand() {}
 
     MessageHeader
-    getHeader(ClientId client_id)
+    getHeader()
     {
         return MessageHeader{MessageType::DoorLockCommand};
     }
@@ -43,7 +43,7 @@ struct DoorLockStatus
     DoorLockStatus() {}
 
     MessageHeader
-    getHeader(ClientId client_id)
+    getHeader()
     {
         return MessageHeader{MessageType::DoorLockStatus};
     }

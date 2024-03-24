@@ -13,7 +13,7 @@ struct RingDispenserCommand
     RingDispenserCommand() {}
 
     MessageHeader
-    getHeader(ClientId client_id)
+    getHeader()
     {
         return MessageHeader{MessageType::RingDispenserCommand};
     }
@@ -35,7 +35,7 @@ struct RingDispenserStatus
     RingDispenserStatus() {}
 
     MessageHeader
-    getHeader(ClientId client_id)
+    getHeader()
     {
         return MessageHeader{MessageType::RingDispenserStatus};
     }
