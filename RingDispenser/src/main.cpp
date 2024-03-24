@@ -1,15 +1,18 @@
 #include <Arduino.h>
 
 #include "alias.hpp"
+#include "serial_in.hpp"
 #include "msg.hpp"
 #include "message_ring_dispenser.hpp"
 
-constexpr u8 SERVO_COMMAND = 7;
+#if WROOM
+constexpr u8 SERVO_COMMAND = 15;
 
 constexpr u8 column_count              = 4;
 constexpr u8 row_count                 = 5;
-constexpr u8 PIN_COLUMNS[column_count] = {0, 0, 0, 0};
-constexpr u8 PIN_ROWS[row_count]       = {0, 0, 0, 0, 0};
+constexpr u8 PIN_COLUMNS[column_count] = {23, 22, 21, 19};
+constexpr u8 PIN_ROWS[row_count]       = {32, 33, 25, 26, 27};
+#endif
 
 ClientId this_client_id = ClientId::RingDispenser;
 
@@ -33,11 +36,11 @@ setup()
     ledcAttachPin(SERVO_COMMAND, 0);
     ledcWrite(0, servo_default);
 
-    for (auto& col : PIN_COLUMNS)
+    for (auto col : PIN_COLUMNS)
     {
-        // pinMode(col, OUTPUT);
+        pinMode(col, OUTPUT);
     }
-    for (auto& row : PIN_ROWS)
+    for (auto row : PIN_ROWS)
     {
         pinMode(row, INPUT_PULLDOWN);
     }
@@ -60,11 +63,13 @@ loop()
 
         if (cmd.state == RingDispenserState::ForceActivate)
         {
-            ledcWrite(0, servo_activated);
+            if (ledcRead(0) != servo_activated)
+                ledcWrite(0, servo_activated);
         }
         else if (cmd.state == RingDispenserState::ForceDeactivate)
         {
-            ledcWrite(0, servo_default);
+            if (ledcRead(0) != servo_default)
+                ledcWrite(0, servo_default);
         }
         status.state   = cmd.state;
         last_cmd_rings = cmd.rings_detected;
@@ -85,7 +90,10 @@ loop()
         }
     }
     break;
-    case MessageType::Reset: { ESP.restart();
+    case MessageType::Reset:
+    {
+        delay(1000);
+        ESP.restart();
     }
     break;
     }
@@ -96,10 +104,10 @@ loop()
     }
 
     u8 i = 0;
-    for (auto& col : PIN_COLUMNS)
+    for (auto col : PIN_COLUMNS)
     {
         digitalWrite(col, 1);
-        for (auto& row : PIN_ROWS)
+        for (auto row : PIN_ROWS)
         {
             if (digitalRead(row))
             {
@@ -118,16 +126,19 @@ loop()
         constexpr u32 all_19_rings = (1 << 19) - 1;
         if (status.rings_detected == all_19_rings)
         {
-            ledcWrite(0, servo_activated);
+            if (ledcRead(0) != servo_activated)
+                ledcWrite(0, servo_activated);
         }
         else
         {
-            ledcWrite(0, servo_default);
+            if (ledcRead(0) != servo_default)
+                ledcWrite(0, servo_default);
         }
     }
 
     if (last_cmd_rings != status.rings_detected
-        && millis() > time_last_state_sent + resend_period)
+        && millis() > time_last_state_sent + resend_period
+        && wifi_state == WifiState::Connected)
     {
         status.ask_for_ack = true;
 
@@ -142,5 +153,24 @@ loop()
         udp.write(buffer.start, buffer.end - buffer.start);
         udp.endPacket();
         time_last_state_sent = millis();
+    }
+    if (auto str = ReadSerial())
+    {
+        if (wifi_state == WifiState::Connected)
+        {
+            auto ser = Serializer(SerializerMode::Serialize,
+                                  {packet_buffer, udp_packet_size});
+
+            LogMessage log = {};
+            log.severity   = LogSeverity::Info;
+            log.string     = {(u8*)str, strlen(str)};
+            log.getHeader(this_client_id).serialize(ser);
+            log.serialize(ser);
+
+            udp.beginPacket(server_connection.address, server_connection.port);
+            BufferPtr buffer = {ser.full_buffer.start, ser.buffer.start};
+            udp.write(buffer.start, buffer.end - buffer.start);
+            udp.endPacket();
+        }
     }
 }
