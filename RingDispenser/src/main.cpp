@@ -12,6 +12,13 @@ constexpr u8 column_count              = 4;
 constexpr u8 row_count                 = 5;
 constexpr u8 PIN_COLUMNS[column_count] = {23, 22, 21, 19};
 constexpr u8 PIN_ROWS[row_count]       = {32, 33, 25, 26, 27};
+
+constexpr u8 rings_remap[column_count * row_count] = {
+    14, 10, 7,  3, 0,  //
+    15, 11, 8,  4, 1,  //
+    16, 12, 9,  5, 2,  //
+    17, 13, 18, 6, 31, //
+};
 #endif
 
 ClientId this_client_id = ClientId::RingDispenser;
@@ -109,13 +116,14 @@ loop()
         digitalWrite(col, 1);
         for (auto row : PIN_ROWS)
         {
+            u8 bit = rings_remap[i];
             if (digitalRead(row))
             {
-                status.rings_detected |= (1ul << i);
+                status.rings_detected |= (1ul << bit);
             }
             else
             {
-                status.rings_detected &= ~(1ul << i);
+                status.rings_detected &= ~(1ul << bit);
             }
             i++;
         }
