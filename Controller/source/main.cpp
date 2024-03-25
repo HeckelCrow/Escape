@@ -62,6 +62,12 @@ Seconds(s64 t)
     return std::chrono::seconds(t);
 }
 
+constexpr Duration
+Minutes(s64 t)
+{
+    return std::chrono::minutes(t);
+}
+
 void
 GlfwErrorCallback(int error_code, const char* message)
 {
@@ -664,147 +670,139 @@ struct Targets
     TargetsStatus  last_status;
 };
 
-s64
-DivideAndRoundDown(s64 numerator, s64 denominator)
-{
-    if (numerator < 0 && numerator % denominator != 0)
-    {
-        return numerator / denominator - 1;
-    }
-    return numerator / denominator;
-}
-
-struct Timer
-{
-    Timer()
-    {
-        last_measure   = Clock::now();
-        command.paused = true;
-    }
-
-    void
-    receiveMessage(Client& client, const TimerStatus& msg, bool print)
-    {
-        if (print)
-        {
-            Print("   TimerStatus:\n");
-            Print("   Time left {:02}:{:02}\n", msg.time_left / 1000 / 60,
-                  msg.time_left / 1000 % 60);
-        }
-        last_status = msg;
-    }
-
-    void
-    update(Client& client)
-    {
-        auto now     = Clock::now();
-        auto elapsed = std::chrono::duration_cast<Duration>(now - last_measure);
-        if (!command.paused && !editing)
-        {
-            time_left -= elapsed;
-        }
-        command.time_left = (s32)DivideAndRoundDown(time_left.count(), 1'000);
-        last_measure      = now;
-
-        if (ImGui::Begin(utf8("Chrono")))
-        {
-            ImGui::Text(utf8("Chrono"));
-            ImGui::SameLine();
-            if (client.connected)
-            {
-                ImGui::TextColored({0.1f, 0.9f, 0.1f, 1.f}, utf8("(Connecté)"));
-            }
-            else
-            {
-                ImGui::TextColored({0.9f, 0.1f, 0.1f, 1.f},
-                                   utf8("(Déconnecté)"));
-            }
-            s32  minutes          = command.time_left / 1000 / 60;
-            s32  seconds          = command.time_left / 1000 % 60;
-            bool update_time_left = false;
-            editing               = false;
-            auto flags            = ImGuiInputTextFlags_AutoSelectAll;
-            ImGui::SetNextItemWidth(100);
-            if (ImGui::InputInt("##Minutes", &minutes, 1, 100, flags))
-            {
-                update_time_left = true;
-            }
-            if (ImGui::IsItemActive())
-            {
-                editing = true;
-            }
-            ImGui::SameLine();
-            ImGui::Text(":");
-            ImGui::SameLine();
-            ImGui::SetNextItemWidth(100);
-            if (ImGui::InputInt("##Seconds", &seconds, 1, 100, flags))
-            {
-                update_time_left = true;
-            }
-            if (ImGui::IsItemActive())
-            {
-                editing = true;
-            }
-            if (update_time_left)
-            {
-                time_left = Seconds((s64)minutes * 60 + (s64)seconds);
-                time_left += Milliseconds(999);
-            }
-
-            ImGui::BeginDisabled(!command.paused);
-            if (ImGui::Button(utf8("Go!")))
-            {
-                command.paused = false;
-            }
-            ImGui::EndDisabled();
-            ImGui::SameLine();
-            ImGui::BeginDisabled(command.paused);
-            if (ImGui::Button(utf8("Pause")))
-            {
-                command.paused = true;
-            }
-            ImGui::EndDisabled();
-        }
-        ImGui::End();
-
-        bool need_update = false;
-        if (std::abs(command.time_left - last_status.time_left) > 400)
-        {
-            need_update = true;
-        }
-        if (command.paused != last_status.paused)
-        {
-            need_update = true;
-        }
-
-        if (client.connection.socket)
-        {
-            if (need_update || client.heartbeatTimeout())
-            {
-                if (client.resendTimeout())
-                {
-                    client.time_command_sent = Clock::now();
-
-                    std::vector<u8> buffer(udp_packet_size);
-                    Serializer      serializer(SerializerMode::Serialize,
-                                               {buffer.data(), (u32)buffer.size()});
-
-                    command.getHeader().serialize(serializer);
-                    command.serialize(serializer);
-
-                    SendPacket(client.connection, serializer);
-                }
-            }
-        }
-    }
-
-    Timepoint last_measure;
-    Duration  time_left = Seconds(60 * 60);
-    bool      editing   = false;
-
-    TimerCommand command;
-    TimerStatus  last_status;
-};
+// struct Timer
+//{
+//     Timer()
+//     {
+//         last_measure   = Clock::now();
+//         command.paused = true;
+//     }
+//
+//     void
+//     receiveMessage(Client& client, const TimerStatus& msg, bool print)
+//     {
+//         if (print)
+//         {
+//             Print("   TimerStatus:\n");
+//             Print("   Time left {:02}:{:02}\n", msg.time_left / 1000 / 60,
+//                   msg.time_left / 1000 % 60);
+//         }
+//         last_status = msg;
+//     }
+//
+//     void
+//     update(Client& client)
+//     {
+//         auto now     = Clock::now();
+//         auto elapsed = std::chrono::duration_cast<Duration>(now -
+//         last_measure); if (!command.paused && !editing)
+//         {
+//             time_left -= elapsed;
+//         }
+//         command.time_left = (s32)DivideAndRoundDown(time_left.count(),
+//         1'000); last_measure      = now;
+//
+//         if (ImGui::Begin(utf8("Chrono")))
+//         {
+//             ImGui::Text(utf8("Chrono"));
+//             ImGui::SameLine();
+//             if (client.connected)
+//             {
+//                 ImGui::TextColored({0.1f, 0.9f, 0.1f, 1.f},
+//                 utf8("(Connecté)"));
+//             }
+//             else
+//             {
+//                 ImGui::TextColored({0.9f, 0.1f, 0.1f, 1.f},
+//                                    utf8("(Déconnecté)"));
+//             }
+//             s32  minutes          = command.time_left / 1000 / 60;
+//             s32  seconds          = command.time_left / 1000 % 60;
+//             bool update_time_left = false;
+//             editing               = false;
+//             auto flags            = ImGuiInputTextFlags_AutoSelectAll;
+//             ImGui::SetNextItemWidth(100);
+//             if (ImGui::InputInt("##Minutes", &minutes, 1, 100, flags))
+//             {
+//                 update_time_left = true;
+//             }
+//             if (ImGui::IsItemActive())
+//             {
+//                 editing = true;
+//             }
+//             ImGui::SameLine();
+//             ImGui::Text(":");
+//             ImGui::SameLine();
+//             ImGui::SetNextItemWidth(100);
+//             if (ImGui::InputInt("##Seconds", &seconds, 1, 100, flags))
+//             {
+//                 update_time_left = true;
+//             }
+//             if (ImGui::IsItemActive())
+//             {
+//                 editing = true;
+//             }
+//             if (update_time_left)
+//             {
+//                 time_left = Seconds((s64)minutes * 60 + (s64)seconds);
+//                 time_left += Milliseconds(999);
+//             }
+//
+//             ImGui::BeginDisabled(!command.paused);
+//             if (ImGui::Button(utf8("Go!")))
+//             {
+//                 command.paused = false;
+//             }
+//             ImGui::EndDisabled();
+//             ImGui::SameLine();
+//             ImGui::BeginDisabled(command.paused);
+//             if (ImGui::Button(utf8("Pause")))
+//             {
+//                 command.paused = true;
+//             }
+//             ImGui::EndDisabled();
+//         }
+//         ImGui::End();
+//
+//         bool need_update = false;
+//         if (std::abs(command.time_left - last_status.time_left) > 400)
+//         {
+//             need_update = true;
+//         }
+//         if (command.paused != last_status.paused)
+//         {
+//             need_update = true;
+//         }
+//
+//         if (client.connection.socket)
+//         {
+//             if (need_update || client.heartbeatTimeout())
+//             {
+//                 if (client.resendTimeout())
+//                 {
+//                     client.time_command_sent = Clock::now();
+//
+//                     std::vector<u8> buffer(udp_packet_size);
+//                     Serializer      serializer(SerializerMode::Serialize,
+//                                                {buffer.data(),
+//                                                (u32)buffer.size()});
+//
+//                     command.getHeader().serialize(serializer);
+//                     command.serialize(serializer);
+//
+//                     SendPacket(client.connection, serializer);
+//                 }
+//             }
+//         }
+//     }
+//
+//     Timepoint last_measure;
+//     Duration  time_left = Seconds(60 * 60);
+//     bool      editing   = false;
+//
+//     TimerCommand command;
+//     TimerStatus  last_status;
+// };
 
 void
 DrawRing(Vec2f pos, Vec2f size, bool detected)
@@ -994,6 +992,160 @@ struct RingDispenser
     RingDispenserStatus  last_status;
 };
 
+s64
+DivideAndRoundDown(s64 numerator, s64 denominator)
+{
+    if (numerator < 0 && numerator % denominator != 0)
+    {
+        return numerator / denominator - 1;
+    }
+    return numerator / denominator;
+}
+
+struct Timer
+{
+    Timer()
+    {
+        last_measure = Clock::now();
+        paused       = true;
+
+        for (auto const& dir_entry :
+             std::filesystem::directory_iterator{"data/timer/"})
+        {
+            if (dir_entry.is_regular_file())
+            {
+                Print("Loading {}\n", dir_entry.path().string());
+                sounds.push_back(LoadAudioFile(dir_entry.path()));
+            }
+        }
+    }
+
+    Timepoint last_measure;
+    Duration  time_left = Minutes(60);
+
+    bool paused = false;
+
+    s32                      sound_gain      = 70;
+    bool                     play_sound_auto = true;
+    u32                      sound_selected  = 0;
+    std::vector<AudioBuffer> sounds;
+    AudioPlaying             playing;
+};
+
+void
+DrawTimer(Timer& timer)
+{
+    bool editing = false;
+    if (ImGui::Begin(utf8("Chrono")))
+    {
+        ImGui::Text(utf8("Chrono"));
+        auto millis_left =
+            (s32)DivideAndRoundDown(timer.time_left.count(), 1'000);
+        s32  minutes          = millis_left / 1000 / 60;
+        s32  seconds          = millis_left / 1000 % 60;
+        bool update_time_left = false;
+        auto flags            = ImGuiInputTextFlags_AutoSelectAll;
+        ImGui::SetNextItemWidth(100);
+        if (ImGui::InputInt("##Minutes", &minutes, 1, 100, flags))
+        {
+            update_time_left = true;
+        }
+        if (ImGui::IsItemActive())
+        {
+            editing = true;
+        }
+        ImGui::SameLine();
+        ImGui::Text(":");
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(100);
+        if (ImGui::InputInt("##Seconds", &seconds, 1, 100, flags))
+        {
+            update_time_left = true;
+        }
+        if (ImGui::IsItemActive())
+        {
+            editing = true;
+        }
+        if (update_time_left)
+        {
+            timer.time_left = Seconds((s64)minutes * 60 + (s64)seconds);
+            timer.time_left += Milliseconds(999);
+        }
+
+        ImGui::BeginDisabled(!timer.paused);
+        if (ImGui::Button(utf8("Go!")))
+        {
+            timer.paused = false;
+        }
+        ImGui::EndDisabled();
+        ImGui::SameLine();
+        ImGui::BeginDisabled(timer.paused);
+        if (ImGui::Button(utf8("Pause")))
+        {
+            timer.paused = true;
+        }
+        ImGui::EndDisabled();
+
+        ImGui::Separator();
+        ImGui::Text(utf8("Rappel toutes les 15 minutes"));
+        ImGui::Checkbox(utf8("Jouer automatiquement"), &timer.play_sound_auto);
+        if (ImGui::Button(utf8("Jouer manuellement")))
+        {
+            timer.playing = PlayAudio(timer.sounds[timer.sound_selected]);
+            SetGain(timer.playing, timer.sound_gain / 100.f);
+        }
+
+        auto& sound_selected = timer.sounds[timer.sound_selected];
+        if (ImGui::BeginCombo(utf8("Son"),
+                              sound_selected.path.filename().string().c_str()))
+        {
+            u32 i = 0;
+            for (auto& sound : timer.sounds)
+            {
+                const bool is_selected = (i == timer.sound_selected);
+                if (ImGui::Selectable(sound.path.filename().string().c_str(),
+                                      is_selected))
+                {
+                    timer.sound_selected = i;
+                }
+                if (is_selected)
+                    ImGui::SetItemDefaultFocus();
+
+                i++;
+            }
+            ImGui::EndCombo();
+        }
+
+        if (ImGui::SliderInt(utf8("Volume"), &timer.sound_gain, 0, 100))
+        {
+            SetGain(timer.playing, timer.sound_gain / 100.f);
+        }
+    }
+    ImGui::End();
+
+    auto now = Clock::now();
+    auto elapsed =
+        std::chrono::duration_cast<Duration>(now - timer.last_measure);
+    if (!timer.paused && !editing)
+    {
+        auto prev = timer.time_left;
+        timer.time_left -= elapsed;
+
+        constexpr Duration play_sound_times[] = {Minutes(45), Minutes(30),
+                                                 Minutes(15)};
+
+        for (const auto& time : play_sound_times)
+        {
+            if (prev >= time && timer.time_left < time)
+            {
+                timer.playing = PlayAudio(timer.sounds[timer.sound_selected]);
+                SetGain(timer.playing, timer.sound_gain / 100.f);
+            }
+        }
+    }
+    timer.last_measure = now;
+}
+
 int
 main()
 {
@@ -1020,14 +1172,16 @@ main()
 
     auto multicast_period = Milliseconds(1000);
 
+    InitAudio(32);
+    SCOPE_EXIT({ TerminateAudio(); });
+
     std::vector<Client> clients((u64)ClientId::IdMax);
     DoorLock            door_lock;
     Targets             targets;
-    Timer               timer;
-    RingDispenser       ring_dispenser;
+    // Timer               timer;
+    RingDispenser ring_dispenser;
 
-    InitAudio(32);
-    SCOPE_EXIT({ TerminateAudio(); });
+    Timer timer;
 
     std::vector<AudioBuffer> musics;
     AudioPlaying             music_playing;
@@ -1036,40 +1190,55 @@ main()
     for (auto const& dir_entry :
          std::filesystem::directory_iterator{"data/musics/"})
     {
-        Print("Loading {}\n", dir_entry.path().string());
-        musics.push_back(LoadAudioFile(dir_entry.path(), true));
+        if (dir_entry.is_regular_file())
+        {
+            Print("Loading {}\n", dir_entry.path().string());
+            musics.push_back(LoadAudioFile(dir_entry.path(), true));
+        }
     }
 
     std::vector<AudioBuffer> orcs;
     for (auto const& dir_entry :
          std::filesystem::directory_iterator{"data/orc/"})
     {
-        Print("Loading {}\n", dir_entry.path().string());
-        orcs.push_back(LoadAudioFile(dir_entry.path()));
+        if (dir_entry.is_regular_file())
+        {
+            Print("Loading {}\n", dir_entry.path().string());
+            orcs.push_back(LoadAudioFile(dir_entry.path()));
+        }
     }
 
     std::vector<AudioBuffer> orc_deaths;
     for (auto const& dir_entry :
          std::filesystem::directory_iterator{"data/orc_death/"})
     {
-        Print("Loading {}\n", dir_entry.path().string());
-        orc_deaths.push_back(LoadAudioFile(dir_entry.path()));
+        if (dir_entry.is_regular_file())
+        {
+            Print("Loading {}\n", dir_entry.path().string());
+            orc_deaths.push_back(LoadAudioFile(dir_entry.path()));
+        }
     }
 
     std::vector<AudioBuffer> orc_hurts;
     for (auto const& dir_entry :
          std::filesystem::directory_iterator{"data/orc_hurt/"})
     {
-        Print("Loading {}\n", dir_entry.path().string());
-        orc_hurts.push_back(LoadAudioFile(dir_entry.path()));
+        if (dir_entry.is_regular_file())
+        {
+            Print("Loading {}\n", dir_entry.path().string());
+            orc_hurts.push_back(LoadAudioFile(dir_entry.path()));
+        }
     }
 
     std::vector<AudioBuffer> orc_mads;
     for (auto const& dir_entry :
          std::filesystem::directory_iterator{"data/orc_mad/"})
     {
-        Print("Loading {}\n", dir_entry.path().string());
-        orc_mads.push_back(LoadAudioFile(dir_entry.path()));
+        if (dir_entry.is_regular_file())
+        {
+            Print("Loading {}\n", dir_entry.path().string());
+            orc_mads.push_back(LoadAudioFile(dir_entry.path()));
+        }
     }
 
     SCOPE_EXIT({
@@ -1203,6 +1372,7 @@ main()
         ImguiStartFrame();
 
         DrawConsole();
+        DrawTimer(timer);
 
         UpdateAudio();
 
@@ -1304,8 +1474,8 @@ main()
 
                     if (server.sockets.size() > 1)
                     {
-                        // We found the right socket, we keep it and close the
-                        // other ones.
+                        // We found the right socket, we keep it and close
+                        // the other ones.
                         server.sockets[0] = message.from.socket;
                         server.sockets.resize(1);
                     }
@@ -1389,18 +1559,19 @@ main()
                 }
                 break;
 
-                case MessageType::TimerCommand: {
-                    PrintWarning("Server received a TimerCommand message\n");
-                    TimerCommand msg;
-                    msg.serialize(message.deserializer);
-                }
-                break;
-                case MessageType::TimerStatus: {
-                    TimerStatus msg;
-                    msg.serialize(message.deserializer);
-                    timer.receiveMessage(client, msg, show_messages_received);
-                }
-                break;
+                    // case MessageType::TimerCommand: {
+                    //     PrintWarning("Server received a TimerCommand
+                    //     message\n"); TimerCommand msg;
+                    //     msg.serialize(message.deserializer);
+                    // }
+                    // break;
+                    // case MessageType::TimerStatus: {
+                    //     TimerStatus msg;
+                    //     msg.serialize(message.deserializer);
+                    //     timer.receiveMessage(client, msg,
+                    //     show_messages_received);
+                    // }
+                    // break;
 
                 case MessageType::RingDispenserCommand: {
                     PrintWarning(
@@ -1440,7 +1611,7 @@ main()
             {
             case ClientId::DoorLock: door_lock.update(client); break;
             case ClientId::Targets: targets.update(client); break;
-            case ClientId::Timer: timer.update(client); break;
+            // case ClientId::Timer: timer.update(client); break;
             case ClientId::RingDispenser: ring_dispenser.update(client); break;
             default: break;
             }
