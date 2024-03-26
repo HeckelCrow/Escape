@@ -23,6 +23,7 @@ struct TargetsCommand
     {
         Serialize(ask_for_ack, s);
         Serialize(enable, s);
+        Serialize(talk, s);
 
         auto target_count_msg = target_count;
         Serialize(target_count_msg, s);
@@ -39,6 +40,7 @@ struct TargetsCommand
 
     u8 ask_for_ack                 = 0;
     u8 enable                      = 0;
+    u8 talk                        = 0;
     s8 hitpoints[target_count]     = {0};
     s8 set_hitpoints[target_count] = {0};
 };
@@ -57,6 +59,7 @@ struct TargetsStatus
     {
         Serialize(ask_for_ack, s);
         Serialize(enabled, s);
+        Serialize(talk, s);
 
         auto target_count_msg = target_count;
         Serialize(target_count_msg, s);
@@ -72,5 +75,6 @@ struct TargetsStatus
 
     u8 ask_for_ack             = 0;
     u8 enabled                 = 0;
+    u8 talk                    = 0;
     s8 hitpoints[target_count] = {0};
 };

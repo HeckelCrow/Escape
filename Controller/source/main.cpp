@@ -626,12 +626,20 @@ struct Targets
                 {
                     command.set_hitpoints[i] = hp;
                 }
+                if (ImGui::Button("Test"))
+                {
+                    command.talk = command.talk ^ (1 << i);
+                }
             }
         }
         ImGui::End();
 
         bool need_update = false;
         if (command.enable != last_status.enabled)
+        {
+            need_update = true;
+        }
+        if (command.talk != last_status.talk)
         {
             need_update = true;
         }

@@ -18,7 +18,8 @@ constexpr u8 I2C_SCL = 33;
 constexpr u8 I2C_SDA = 4;
 constexpr u8 I2C_SCL = 5;
 
-constexpr u8 LED_OUT = 48;
+constexpr u8 INBUILT_LED_OUT = 48;
+// constexpr u8 LEDS_OUT        = 6;
 #endif
 
 TwoWire i2c = TwoWire(0);
@@ -57,12 +58,19 @@ u32           time_last_state_sent = 0;
 
 CRGB led_color;
 
+// constexpr u32 led_count = 50;
+// CRGB          leds[led_count];
+
 void
 setup()
 {
     Serial.begin(SERIAL_BAUD_RATE);
 
-    FastLED.addLeds<NEOPIXEL, LED_OUT>(&led_color, 1);
+    FastLED.addLeds<NEOPIXEL, INBUILT_LED_OUT>(&led_color, 1);
+    led_color = CRGB(255, 0, 0);
+    FastLED.show();
+
+    // FastLED.addLeds<NEOPIXEL, LEDS_OUT>(leds, led_count);
 
     delay(1000);
     Serial.println(F("Hello"));
@@ -140,7 +148,11 @@ SetCommand(TargetsCommand cmd)
         }
     }
     status.enabled = cmd.enable;
+    status.talk    = cmd.talk;
 }
+
+u32 hit_time     = 0;
+u32 hit_duration = 3000;
 
 void
 NewSample(AdcChannel& ch, s16 value)
@@ -160,12 +172,12 @@ NewSample(AdcChannel& ch, s16 value)
 
     s32 peak_to_peak = (s32)max - (s32)min;
 
-    if (status.enabled & (1 << ch.target_index))
-    {
-        Serial.printf(">piezo%d:%d\n", ch.target_index, peak_to_peak);
-        Serial.printf(">piezo_value%d:%d\n", ch.target_index, value);
-        Serial.printf(">avg%d:%d\n", ch.target_index, ch.average / 256);
-    }
+    // if (status.enabled & (1 << ch.target_index))
+    // {
+    //     Serial.printf(">piezo%d:%d\n", ch.target_index, peak_to_peak);
+    //     Serial.printf(">piezo_value%d:%d\n", ch.target_index, value);
+    //     Serial.printf(">avg%d:%d\n", ch.target_index, ch.average / 256);
+    // }
 
     s16 threshold = 3 * ch.average / 256;
     if (peak_to_peak > threshold)
@@ -180,6 +192,8 @@ NewSample(AdcChannel& ch, s16 value)
                 {
                     status.hitpoints[ch.target_index]--;
                     need_resend_status = true;
+
+                    hit_time = millis();
                 }
             }
         }
@@ -206,11 +220,34 @@ loop()
     if (millis() > next_led_update)
     {
         next_led_update += led_update_period;
-        led_color = CRGB(CHSV(beatsin16(4, 0, 255), 255, 255));
+        // led_color = CRGB(CHSV(beatsin16(4, 0, 255), 255, 255));
+
+        accum88 bpm = 40 * 255;
+        if (hit_time != 0)
+        {
+            if (millis() < hit_time + hit_duration)
+            {
+                bpm = 200 * 255;
+            }
+            else
+            {
+                hit_time = 0;
+            }
+        }
+
+        if (hit_time == 0 && status.talk & (1 << 0))
+        {
+            led_color = CRGB(255, 0, 0);
+        }
+        else
+        {
+            led_color = CRGB(CHSV(beatsin88(bpm, 0, 20), 255, 255));
+        }
+
         FastLED.show();
     }
 
-    if (need_resend_status)
+    if (need_resend_status && wifi_state == WifiState::Connected)
     {
         if (millis() > time_last_state_sent + resend_period)
         {
@@ -219,7 +256,7 @@ loop()
             auto ser = Serializer(SerializerMode::Serialize,
                                   {packet_buffer, udp_packet_size});
 
-            status.getHeader(this_client_id).serialize(ser);
+            status.getHeader().serialize(ser);
             status.serialize(ser);
 
             udp.beginPacket(server_connection.address, server_connection.port);
@@ -255,7 +292,7 @@ loop()
                 auto ser = Serializer(SerializerMode::Serialize,
                                       {packet_buffer, udp_packet_size});
 
-                status.getHeader(this_client_id).serialize(ser);
+                status.getHeader().serialize(ser);
                 status.serialize(ser);
 
                 udp.beginPacket(server_connection.address,
@@ -267,7 +304,10 @@ loop()
             }
         }
         break;
-        case MessageType::Reset: { ESP.restart();
+        case MessageType::Reset:
+        {
+            delay(1000);
+            ESP.restart();
         }
         break;
         }
