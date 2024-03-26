@@ -24,6 +24,7 @@ struct AudioPlaying
 AudioPlaying PlayAudio(const AudioBuffer& buffer);
 void         StopAudio(AudioPlaying& playing);
 void         SetGain(AudioPlaying playing, f32 gain);
+void         SetPitch(AudioPlaying playing, f32 pitch);
 
 bool InitAudio(u32 source_count);
 void TerminateAudio();

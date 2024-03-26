@@ -25,6 +25,7 @@
 #include <span>
 #include <chrono>
 #include <atomic>
+#include <random>
 
 #include "msg/message_door_lock.hpp"
 #include "msg/message_targets.hpp"
@@ -1154,11 +1155,37 @@ DrawTimer(Timer& timer)
     timer.last_measure = now;
 }
 
+template<typename T>
+T
+Random(std::mt19937& mt, T min, T max)
+{
+    if constexpr (std::is_floating_point_v<T>)
+    {
+        std::uniform_real_distribution<T> distribution(min, max);
+        return distribution(mt);
+    }
+    if constexpr (std::is_integral_v<T>)
+    {
+        std::uniform_int_distribution<T> distribution(min, max);
+        return distribution(mt);
+    }
+}
+
+template<typename T>
+T
+Random(std::mt19937& mt, T max)
+{
+    return Random(mt, (T)0, max);
+}
+
 int
 main()
 {
     SetConsoleOutputCP(CP_UTF8);
     Print("Hello.\n");
+
+    std::random_device rd;
+    std::mt19937       mt(rd());
 
     glfwSetErrorCallback(GlfwErrorCallback);
     if (!glfwInit())
@@ -1410,30 +1437,34 @@ main()
 
             if (ImGui::Button(utf8("Orque!")))
             {
-                u32  rand_index = rand() % orcs.size();
+                u32  rand_index = Random(mt, orcs.size() - 1);
                 auto player     = PlayAudio(orcs[rand_index]);
                 SetGain(player, gain_orcs / 100.f);
+                SetPitch(player, Random(mt, 0.7f, 1.2f));
             }
 
             if (ImGui::Button(utf8("Orque blessé!")))
             {
-                u32  rand_index = rand() % orc_hurts.size();
+                u32  rand_index = Random(mt, orc_hurts.size() - 1);
                 auto player     = PlayAudio(orc_hurts[rand_index]);
                 SetGain(player, gain_orcs / 100.f);
+                SetPitch(player, Random(mt, 0.7f, 1.2f));
             }
 
             if (ImGui::Button(utf8("Orque enervé!")))
             {
-                u32  rand_index = rand() % orc_mads.size();
+                u32  rand_index = Random(mt, orc_mads.size() - 1);
                 auto player     = PlayAudio(orc_mads[rand_index]);
                 SetGain(player, gain_orcs / 100.f);
+                SetPitch(player, Random(mt, 0.7f, 1.2f));
             }
 
             if (ImGui::Button(utf8("Orque mort!")))
             {
-                u32  rand_index = rand() % orc_deaths.size();
+                u32  rand_index = Random(mt, orc_deaths.size() - 1);
                 auto player     = PlayAudio(orc_deaths[rand_index]);
                 SetGain(player, gain_orcs / 100.f);
+                SetPitch(player, Random(mt, 0.7f, 1.2f));
             }
 
             static s32 gain_music = 50;

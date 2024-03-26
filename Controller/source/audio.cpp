@@ -348,6 +348,23 @@ SetGain(AudioPlaying playing, f32 gain)
     }
 }
 
+void
+SetPitch(AudioPlaying playing, f32 pitch)
+{
+    if (playing.source_index < 0
+        || playing.source_index >= audio.sources.size())
+    {
+        return;
+    }
+    auto& source = audio.sources[playing.source_index];
+    if (source.playing_id == playing.playing_id)
+    {
+        Print("Set source {} (id {}) pitch to {}\n", source.al_source,
+              playing.playing_id, pitch);
+        alSourcef(source.al_source, AL_PITCH, pitch);
+    }
+}
+
 bool
 InitAudio(u32 source_count)
 {
