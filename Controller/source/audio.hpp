@@ -23,6 +23,7 @@ struct AudioPlaying
 
 AudioPlaying PlayAudio(const AudioBuffer& buffer);
 void         StopAudio(AudioPlaying& playing);
+bool         IsPlaying(const AudioPlaying& playing);
 void         SetGain(AudioPlaying playing, f32 gain);
 void         SetPitch(AudioPlaying playing, f32 pitch);
 

@@ -69,6 +69,32 @@ Minutes(s64 t)
     return std::chrono::minutes(t);
 }
 
+std::random_device global_random_device;
+std::mt19937       global_mt19937(global_random_device());
+
+template<typename T>
+T
+Random(T min, T max)
+{
+    if constexpr (std::is_floating_point_v<T>)
+    {
+        std::uniform_real_distribution<T> distribution(min, max);
+        return distribution(global_mt19937);
+    }
+    if constexpr (std::is_integral_v<T>)
+    {
+        std::uniform_int_distribution<T> distribution(min, max);
+        return distribution(global_mt19937);
+    }
+}
+
+template<typename T>
+T
+Random(T max)
+{
+    return Random((T)0, max);
+}
+
 void
 GlfwErrorCallback(int error_code, const char* message)
 {
@@ -543,9 +569,65 @@ DrawOrc(u32 index, bool enabled, s8 set_hp, s8 hp)
     return (s8)hp_s32;
 }
 
+constexpr f32 orc_pitch_min = 0.7f;
+constexpr f32 orc_pitch_max = 1.2f;
+
 struct Targets
 {
-    Targets() {}
+    Targets()
+    {
+        for (auto const& dir_entry :
+             std::filesystem::directory_iterator{"data/orc/"})
+        {
+            if (dir_entry.is_regular_file())
+            {
+                Print("Loading {}\n", dir_entry.path().string());
+                orcs.push_back(LoadAudioFile(dir_entry.path()));
+            }
+        }
+
+        for (auto const& dir_entry :
+             std::filesystem::directory_iterator{"data/orc_death/"})
+        {
+            if (dir_entry.is_regular_file())
+            {
+                Print("Loading {}\n", dir_entry.path().string());
+                orc_deaths.push_back(LoadAudioFile(dir_entry.path()));
+            }
+        }
+
+        for (auto const& dir_entry :
+             std::filesystem::directory_iterator{"data/orc_hurt/"})
+        {
+            if (dir_entry.is_regular_file())
+            {
+                Print("Loading {}\n", dir_entry.path().string());
+                orc_hurts.push_back(LoadAudioFile(dir_entry.path()));
+            }
+        }
+
+        for (auto const& dir_entry :
+             std::filesystem::directory_iterator{"data/orc_mad/"})
+        {
+            if (dir_entry.is_regular_file())
+            {
+                Print("Loading {}\n", dir_entry.path().string());
+                orc_mads.push_back(LoadAudioFile(dir_entry.path()));
+            }
+        }
+    }
+
+    ~Targets()
+    {
+        for (auto& sound : orcs)
+            DestroyAudioBuffer(sound);
+        for (auto& sound : orc_deaths)
+            DestroyAudioBuffer(sound);
+        for (auto& sound : orc_hurts)
+            DestroyAudioBuffer(sound);
+        for (auto& sound : orc_mads)
+            DestroyAudioBuffer(sound);
+    }
 
     void
     receiveMessage(Client& client, const TargetsStatus& msg, bool print)
@@ -566,6 +648,29 @@ struct Targets
 
         for (u32 i = 0; i < target_count; i++)
         {
+            if (command.hitpoints[i] > last_status.hitpoints[i]
+                && command.hitpoints[i] > 0)
+            {
+                if (last_status.hitpoints[i] <= 0)
+                {
+                    StopAudio(sound_playing[i]);
+                    u32 rand_index   = Random(orc_deaths.size() - 1);
+                    sound_playing[i] = PlayAudio(orc_deaths[rand_index]);
+                    SetGain(sound_playing[i], gain_orcs_hurt / 100.f);
+                    SetPitch(sound_playing[i],
+                             Random(orc_pitch_min, orc_pitch_max));
+                }
+                else
+                {
+                    StopAudio(sound_playing[i]);
+                    u32 rand_index   = Random(orc_deaths.size() - 1);
+                    sound_playing[i] = PlayAudio(orc_deaths[rand_index]);
+                    SetGain(sound_playing[i], gain_orcs_hurt / 100.f);
+                    SetPitch(sound_playing[i],
+                             Random(orc_pitch_min, orc_pitch_max));
+                }
+            }
+
             command.hitpoints[i] = last_status.hitpoints[i];
 
             if (command.set_hitpoints[i] == last_status.hitpoints[i])
@@ -620,20 +725,87 @@ struct Targets
             for (u32 i = 0; i < target_count; i++)
             {
                 ImGui::Separator();
-                auto hp =
-                    DrawOrc(i, command.enable & (1 << i),
-                            command.set_hitpoints[i], last_status.hitpoints[i]);
+                bool enabled = command.enable & (1 << i);
+                auto hp      = DrawOrc(i, enabled, command.set_hitpoints[i],
+                                       last_status.hitpoints[i]);
                 if (hp >= 0)
                 {
                     command.set_hitpoints[i] = hp;
                 }
-                if (ImGui::Button("Test"))
+            }
+            ImGui::Separator();
+            ImGui::Text(utf8("Réglages"));
+            ImGui::SliderInt(utf8("Volume orques"), &gain_orcs, 0, 100);
+            ImGui::SliderInt(utf8("Volume orques blessés/mort"),
+                             &gain_orcs_hurt, 0, 100);
+
+            ImGui::SliderInt(utf8("Temps mini entre cris (ms)"),
+                             &min_time_between_sounds, 0, 1000);
+            ImGui::SliderInt(utf8("Proba. cris (1/valeur)"), &sound_probability,
+                             1, 1000);
+
+            if (ImGui::CollapsingHeader(utf8("Boutons de sons")))
+            {
+                if (ImGui::Button(utf8("Orque!")))
                 {
-                    command.talk = command.talk ^ (1 << i);
+                    u32  rand_index = Random(orcs.size() - 1);
+                    auto player     = PlayAudio(orcs[rand_index]);
+                    SetGain(player, gain_orcs / 100.f);
+                    SetPitch(player, Random(orc_pitch_min, orc_pitch_max));
+                }
+
+                if (ImGui::Button(utf8("Orque blessé!")))
+                {
+                    u32  rand_index = Random(orc_hurts.size() - 1);
+                    auto player     = PlayAudio(orc_hurts[rand_index]);
+                    SetGain(player, gain_orcs / 100.f);
+                    SetPitch(player, Random(orc_pitch_min, orc_pitch_max));
+                }
+
+                if (ImGui::Button(utf8("Orque enervé!")))
+                {
+                    u32  rand_index = Random(orc_mads.size() - 1);
+                    auto player     = PlayAudio(orc_mads[rand_index]);
+                    SetGain(player, gain_orcs / 100.f);
+                    SetPitch(player, Random(orc_pitch_min, orc_pitch_max));
+                }
+
+                if (ImGui::Button(utf8("Orque mort!")))
+                {
+                    u32  rand_index = Random(orc_deaths.size() - 1);
+                    auto player     = PlayAudio(orc_deaths[rand_index]);
+                    SetGain(player, gain_orcs / 100.f);
+                    SetPitch(player, Random(orc_pitch_min, orc_pitch_max));
                 }
             }
         }
         ImGui::End();
+        if (Clock::now()
+            > time_last_sound + Milliseconds(min_time_between_sounds))
+        {
+            for (u32 i = 0; i < target_count; i++)
+            {
+                bool enabled = command.enable & (1 << i);
+                if (command.hitpoints[i] > 0 && enabled)
+                {
+                    if (!IsPlaying(sound_playing[i]))
+                    {
+                        command.talk = command.talk & ~(1 << i);
+                        if (Random(1.f) < 1.f / sound_probability)
+                        {
+                            time_last_sound  = Clock::now();
+                            u32 rand_index   = Random(orcs.size() - 1);
+                            sound_playing[i] = PlayAudio(orcs[rand_index]);
+                            SetGain(sound_playing[i], gain_orcs / 100.f);
+                            SetPitch(sound_playing[i],
+                                     Random(orc_pitch_min, orc_pitch_max));
+
+                            command.talk = command.talk | (1 << i);
+                        }
+                    }
+                }
+            }
+        }
 
         bool need_update = false;
         if (command.enable != last_status.enabled)
@@ -677,6 +849,20 @@ struct Targets
 
     TargetsCommand command;
     TargetsStatus  last_status;
+
+    AudioPlaying sound_playing[target_count];
+    Timepoint    time_last_sound;
+
+    std::vector<AudioBuffer> orcs;
+    std::vector<AudioBuffer> orc_deaths;
+    std::vector<AudioBuffer> orc_hurts;
+    std::vector<AudioBuffer> orc_mads;
+
+    s32 gain_orcs      = 70;
+    s32 gain_orcs_hurt = 100;
+
+    s32 min_time_between_sounds = 700;
+    s32 sound_probability       = 200;
 };
 
 // struct Timer
@@ -1028,6 +1214,11 @@ struct Timer
             }
         }
     }
+    ~Timer()
+    {
+        for (auto& sound : sounds)
+            DestroyAudioBuffer(sound);
+    }
 
     Timepoint last_measure;
     Duration  time_left = Minutes(60);
@@ -1155,37 +1346,11 @@ DrawTimer(Timer& timer)
     timer.last_measure = now;
 }
 
-template<typename T>
-T
-Random(std::mt19937& mt, T min, T max)
-{
-    if constexpr (std::is_floating_point_v<T>)
-    {
-        std::uniform_real_distribution<T> distribution(min, max);
-        return distribution(mt);
-    }
-    if constexpr (std::is_integral_v<T>)
-    {
-        std::uniform_int_distribution<T> distribution(min, max);
-        return distribution(mt);
-    }
-}
-
-template<typename T>
-T
-Random(std::mt19937& mt, T max)
-{
-    return Random(mt, (T)0, max);
-}
-
 int
 main()
 {
     SetConsoleOutputCP(CP_UTF8);
     Print("Hello.\n");
-
-    std::random_device rd;
-    std::mt19937       mt(rd());
 
     glfwSetErrorCallback(GlfwErrorCallback);
     if (!glfwInit())
@@ -1231,55 +1396,6 @@ main()
             musics.push_back(LoadAudioFile(dir_entry.path(), true));
         }
     }
-
-    std::vector<AudioBuffer> orcs;
-    for (auto const& dir_entry :
-         std::filesystem::directory_iterator{"data/orc/"})
-    {
-        if (dir_entry.is_regular_file())
-        {
-            Print("Loading {}\n", dir_entry.path().string());
-            orcs.push_back(LoadAudioFile(dir_entry.path()));
-        }
-    }
-
-    std::vector<AudioBuffer> orc_deaths;
-    for (auto const& dir_entry :
-         std::filesystem::directory_iterator{"data/orc_death/"})
-    {
-        if (dir_entry.is_regular_file())
-        {
-            Print("Loading {}\n", dir_entry.path().string());
-            orc_deaths.push_back(LoadAudioFile(dir_entry.path()));
-        }
-    }
-
-    std::vector<AudioBuffer> orc_hurts;
-    for (auto const& dir_entry :
-         std::filesystem::directory_iterator{"data/orc_hurt/"})
-    {
-        if (dir_entry.is_regular_file())
-        {
-            Print("Loading {}\n", dir_entry.path().string());
-            orc_hurts.push_back(LoadAudioFile(dir_entry.path()));
-        }
-    }
-
-    std::vector<AudioBuffer> orc_mads;
-    for (auto const& dir_entry :
-         std::filesystem::directory_iterator{"data/orc_mad/"})
-    {
-        if (dir_entry.is_regular_file())
-        {
-            Print("Loading {}\n", dir_entry.path().string());
-            orc_mads.push_back(LoadAudioFile(dir_entry.path()));
-        }
-    }
-
-    SCOPE_EXIT({
-        for (auto& orc : orcs)
-            DestroyAudioBuffer(orc);
-    });
 
     RegisterConsoleCommand(
         "help", {}, std::function([&]() {
@@ -1432,41 +1548,6 @@ main()
 
         if (ImGui::Begin("Audio"))
         {
-            static s32 gain_orcs = 50;
-            ImGui::SliderInt(utf8("Volume orques"), &gain_orcs, 0, 100);
-
-            if (ImGui::Button(utf8("Orque!")))
-            {
-                u32  rand_index = Random(mt, orcs.size() - 1);
-                auto player     = PlayAudio(orcs[rand_index]);
-                SetGain(player, gain_orcs / 100.f);
-                SetPitch(player, Random(mt, 0.7f, 1.2f));
-            }
-
-            if (ImGui::Button(utf8("Orque blessé!")))
-            {
-                u32  rand_index = Random(mt, orc_hurts.size() - 1);
-                auto player     = PlayAudio(orc_hurts[rand_index]);
-                SetGain(player, gain_orcs / 100.f);
-                SetPitch(player, Random(mt, 0.7f, 1.2f));
-            }
-
-            if (ImGui::Button(utf8("Orque enervé!")))
-            {
-                u32  rand_index = Random(mt, orc_mads.size() - 1);
-                auto player     = PlayAudio(orc_mads[rand_index]);
-                SetGain(player, gain_orcs / 100.f);
-                SetPitch(player, Random(mt, 0.7f, 1.2f));
-            }
-
-            if (ImGui::Button(utf8("Orque mort!")))
-            {
-                u32  rand_index = Random(mt, orc_deaths.size() - 1);
-                auto player     = PlayAudio(orc_deaths[rand_index]);
-                SetGain(player, gain_orcs / 100.f);
-                SetPitch(player, Random(mt, 0.7f, 1.2f));
-            }
-
             static s32 gain_music = 50;
             if (ImGui::SliderInt(utf8("Volume musique"), &gain_music, 0, 100))
             {

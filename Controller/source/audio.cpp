@@ -331,6 +331,23 @@ StopAudio(AudioPlaying& playing)
     }
 }
 
+bool
+IsPlaying(const AudioPlaying& playing)
+{
+    if (playing.source_index < 0
+        || playing.source_index >= audio.sources.size())
+    {
+        return false;
+    }
+    auto& source = audio.sources[playing.source_index];
+
+    if (source.playing_id == playing.playing_id)
+    {
+        return true;
+    }
+    return false;
+}
+
 void
 SetGain(AudioPlaying playing, f32 gain)
 {
