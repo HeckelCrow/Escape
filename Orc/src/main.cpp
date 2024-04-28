@@ -119,47 +119,6 @@ LoadFileIntoBuffer(WaveFile& file)
    return loaded != 0;
 }
 
-// bool
-// LoadFileIntoBuffer(WaveFile& file)
-// {
-//    u32 available = 0;
-//    if (file.read_index <= file.write_index)
-//    {
-//       available = file.buffer_size - file.write_index;
-//       if (file.read_index == 0)
-//       {
-//          // If read_index == write_index, that means the buffer is empty.
-//          // So we have to load one less.
-//          available--;
-//       }
-//       if (available)
-//       {
-//          u32 loaded =
-//              file.handle.read(&file.buffer[file.write_index], available);
-//          file.write_index = (file.write_index + loaded) % file.buffer_size;
-
-//          // TODO: find a cleaner way to do this
-//          if (loaded == 0)
-//             return false;
-//       }
-//    }
-//    if (file.read_index > file.write_index)
-//    {
-//       available = file.read_index - file.write_index - 1;
-
-//       if (available)
-//       {
-//          u32 loaded =
-//              file.handle.read(&file.buffer[file.write_index], available);
-//          file.write_index = (file.write_index + loaded) % file.buffer_size;
-
-//          if (loaded == 0)
-//             return false;
-//       }
-//    }
-//    return true;
-// }
-
 template<typename T>
 bool
 ReadFile(WaveFile& file, T& value)
