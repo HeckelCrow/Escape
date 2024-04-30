@@ -1,6 +1,7 @@
 #include "alias.hpp"
 
 #include <Arduino.h>
+#include <Wire.h>
 #include <SPI.h>
 #define FS_NO_GLOBALS
 #include <LittleFS.h>
@@ -20,6 +21,9 @@ constexpr u8 SD_MOSI = 25;
 constexpr u8 SD_CLK  = 33;
 constexpr u8 SD_CS   = 26;
 
+constexpr u8 I2C_SDA = 21;
+constexpr u8 I2C_SCL = 22;
+
 #endif
 
 File32 sound_dir;
@@ -27,6 +31,28 @@ f32    volume = 0.1;
 
 SdFat32  SD;
 SPIClass vSPI;
+
+constexpr u16 MPU6050_address = 0x68;
+
+/*
+   FS_SEL
+   0    ±  250 °/s
+   1    ±  500 °/s
+   2    ± 1000 °/s
+   3    ± 2000 °/s
+*/
+constexpr u8  FS_SEL          = 1;
+constexpr s16 FS_SEL_values[] = {250, 500, 1000, 2000};
+
+/*
+    AFS_SEL
+    0    ± 2g
+    1    ± 4g
+    2    ± 8g
+    3    ± 16g
+ */
+constexpr u8  AFS_SEL          = 2;
+constexpr s16 AFS_SEL_values[] = {2, 4, 8, 16};
 
 void
 PrintDirectory(File32 dir, u8 depth = 0)
@@ -431,6 +457,61 @@ StartNextFile()
    }
 }
 
+struct Vec3
+{
+   f32 x;
+   f32 y;
+   f32 z;
+};
+
+Vec3
+ReadAcceleration()
+{
+   Vec3 a;
+   Wire.beginTransmission(MPU6050_address);
+   Wire.write(0x3B);
+   Wire.endTransmission();
+   Wire.requestFrom(MPU6050_address, (size_t)6);
+   s16 x = Wire.read() << 8 | Wire.read();
+   s16 y = Wire.read() << 8 | Wire.read();
+   s16 z = Wire.read() << 8 | Wire.read();
+
+   constexpr f32 scale = (f32)FS_SEL_values[FS_SEL] / S16_MAX;
+
+   a.x = x * scale;
+   a.y = y * scale;
+   a.z = z * scale;
+
+   // a.x = (f32)x;
+   // a.y = (f32)y;
+   // a.z = (f32)z;
+
+   return a;
+}
+
+Vec3
+ReadGyroscope()
+{
+   Vec3 a;
+   Wire.beginTransmission(MPU6050_address);
+   Wire.write(0x43);
+   Wire.endTransmission();
+   Wire.requestFrom(MPU6050_address, (size_t)6);
+   s16 x = Wire.read() << 8 | Wire.read();
+   s16 y = Wire.read() << 8 | Wire.read();
+   s16 z = Wire.read() << 8 | Wire.read();
+
+   constexpr f32 scale = (f32)AFS_SEL_values[AFS_SEL] / S16_MAX;
+
+   a.x = x * scale;
+   a.y = y * scale;
+   a.z = z * scale;
+
+   return a;
+}
+
+Vec3 gyro_offset;
+
 void
 setup()
 {
@@ -442,97 +523,218 @@ setup()
                 "." STRINGIFY(ESP_ARDUINO_VERSION_MINOR)                    //
                 "." STRINGIFY(ESP_ARDUINO_VERSION_PATCH) "\n");             //
 
-   vSPI.begin(SD_CLK, SD_MISO, SD_MOSI, SD_CS);
-   if (!SD.begin(SdSpiConfig(SD_CS, DEDICATED_SPI, SD_SCK_MHZ(20), &vSPI)))
+   // vSPI.begin(SD_CLK, SD_MISO, SD_MOSI, SD_CS);
+   // if (!SD.begin(SdSpiConfig(SD_CS, DEDICATED_SPI, SD_SCK_MHZ(20), &vSPI)))
+   // {
+   //    if (SD.card()->errorCode())
+   //    {
+   //       Serial.println(F("\nSD initialization failed.\n"
+   //                        "Do not reformat the card!\n"
+   //                        "Is the card correctly inserted?\n"
+   //                        "Is chipSelect set to the correct value?\n"
+   //                        "Does another SPI device need to be disabled?\n"
+   //                        "Is there a wiring/soldering problem?\n"));
+   //       Serial.print(F("errorCode: "));
+   //       Serial.println(int(SD.card()->errorCode()), HEX);
+   //       Serial.print(F("errorData: "));
+   //       Serial.println(int(SD.card()->errorData()));
+   //       return;
+   //    }
+
+   //    if (SD.vol()->fatType() == 0)
+   //    {
+   //       Serial.println(F("Can't find a valid FAT16/FAT32 partition."));
+   //       return;
+   //    }
+   //    else
+   //    {
+   //       Serial.println(F("Can't determine error type\n"));
+   //       return;
+   //    }
+   // }
+   // Serial.println(F("Card successfully initialized."));
+
+   // uint32_t size = SD.card()->sectorCount();
+   // if (size == 0)
+   // {
+   //    Serial.println(
+   //        F("Can't determine the card size.\n Try another SD card or "
+   //          "reduce the SPI bus speed."));
+   // }
+   // else
+   // {
+   //    uint32_t sizeMB = 0.000512 * size + 0.5;
+   //    Serial.print("SD Card Size:");
+   //    Serial.print(sizeMB);
+   //    Serial.println("MB");
+
+   //    if ((sizeMB > 1100 && SD.vol()->sectorsPerCluster() < 64)
+   //        || (sizeMB < 2200 && SD.vol()->fatType() == 32))
+   //    {
+   //       Serial.print(
+   //           F("\nThis card should be reformatted for best performance.\n"));
+   //       Serial.print(
+   //           F("Use a cluster size of 32 KB for cards larger than 1 GB.\n"));
+   //       Serial.print(
+   //           F("Only cards larger than 2 GB should be formatted FAT32.\n"));
+   //    }
+   // }
+
+   // sound_dir = SD.open("/");
+   // PrintDirectory(sound_dir);
+
+   // i2s_config_t i2s_config = {
+   //     .mode                 = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX),
+   //     .sample_rate          = 44100,
+   //     .bits_per_sample      = I2S_BITS_PER_SAMPLE_16BIT,
+   //     .channel_format       = I2S_CHANNEL_FMT_RIGHT_LEFT, // Stereo
+   //     .communication_format = I2S_COMM_FORMAT_STAND_I2S,
+   //     .intr_alloc_flags     = 0, // Default interrupt priority
+   //     .dma_buf_count        = 8,
+   //     .dma_buf_len          = 256, // TODO: pick buffer length, default 64
+   //     .use_apll             = false,
+   //     .tx_desc_auto_clear   = true, // Auto clear tx descriptor on underflow
+   //     .fixed_mclk           = 0};
+
+   // i2s_driver_install(I2S_NUM_0, &i2s_config, 0, NULL);
+
+   // i2s_pin_config_t pin_config = {.bck_io_num   = I2S_BCK,
+   //                                .ws_io_num    = I2S_LCK,
+   //                                .data_out_num = I2S_DOUT,
+   //                                .data_in_num  = I2S_PIN_NO_CHANGE};
+   // i2s_set_pin(I2S_NUM_0, &pin_config);
+
+   // StartNextFile();
+
+   Wire.begin(I2C_SDA, I2C_SCL);
+
+   Wire.beginTransmission(MPU6050_address);
+   Wire.write(0x6B);
+   Wire.write(0x00);
+   Wire.endTransmission();
+
+   // DLPF_CFG = 5: 10Hz low pass filter
+   Wire.beginTransmission(MPU6050_address);
+   Wire.write(0x1A);
+   Wire.write(0x05);
+   Wire.endTransmission();
+
+   Wire.beginTransmission(MPU6050_address);
+   Wire.write(0x1B);
+   Wire.write(FS_SEL << 3);
+   Wire.endTransmission();
+
+   Wire.beginTransmission(MPU6050_address);
+   Wire.write(0x1C);
+   Wire.write(AFS_SEL << 3);
+   Wire.endTransmission();
+
+   for (u16 i = 0; i < 1000; i++)
    {
-      if (SD.card()->errorCode())
-      {
-         Serial.println(F("\nSD initialization failed.\n"
-                          "Do not reformat the card!\n"
-                          "Is the card correctly inserted?\n"
-                          "Is chipSelect set to the correct value?\n"
-                          "Does another SPI device need to be disabled?\n"
-                          "Is there a wiring/soldering problem?\n"));
-         Serial.print(F("errorCode: "));
-         Serial.println(int(SD.card()->errorCode()), HEX);
-         Serial.print(F("errorData: "));
-         Serial.println(int(SD.card()->errorData()));
-         return;
-      }
+      auto gyro = ReadGyroscope();
 
-      if (SD.vol()->fatType() == 0)
-      {
-         Serial.println(F("Can't find a valid FAT16/FAT32 partition."));
-         return;
-      }
-      else
-      {
-         Serial.println(F("Can't determine error type\n"));
-         return;
-      }
+      gyro_offset.x += gyro.x / 1000.f;
+      gyro_offset.y += gyro.y / 1000.f;
+      gyro_offset.z += gyro.z / 1000.f;
    }
-   Serial.println(F("Card successfully initialized."));
-
-   uint32_t size = SD.card()->sectorCount();
-   if (size == 0)
-   {
-      Serial.println(
-          F("Can't determine the card size.\n Try another SD card or "
-            "reduce the SPI bus speed."));
-   }
-   else
-   {
-      uint32_t sizeMB = 0.000512 * size + 0.5;
-      Serial.print("SD Card Size:");
-      Serial.print(sizeMB);
-      Serial.println("MB");
-
-      if ((sizeMB > 1100 && SD.vol()->sectorsPerCluster() < 64)
-          || (sizeMB < 2200 && SD.vol()->fatType() == 32))
-      {
-         Serial.print(
-             F("\nThis card should be reformatted for best performance.\n"));
-         Serial.print(
-             F("Use a cluster size of 32 KB for cards larger than 1 GB.\n"));
-         Serial.print(
-             F("Only cards larger than 2 GB should be formatted FAT32.\n"));
-      }
-   }
-
-   sound_dir = SD.open("/");
-   PrintDirectory(sound_dir);
-
-   i2s_config_t i2s_config = {
-       .mode                 = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX),
-       .sample_rate          = 44100,
-       .bits_per_sample      = I2S_BITS_PER_SAMPLE_16BIT,
-       .channel_format       = I2S_CHANNEL_FMT_RIGHT_LEFT, // Stereo
-       .communication_format = I2S_COMM_FORMAT_STAND_I2S,
-       .intr_alloc_flags     = 0, // Default interrupt priority
-       .dma_buf_count        = 8,
-       .dma_buf_len          = 256, // TODO: pick buffer length, default 64
-       .use_apll             = false,
-       .tx_desc_auto_clear   = true, // Auto clear tx descriptor on underflow
-       .fixed_mclk           = 0};
-
-   i2s_driver_install(I2S_NUM_0, &i2s_config, 0, NULL);
-
-   i2s_pin_config_t pin_config = {.bck_io_num   = I2S_BCK,
-                                  .ws_io_num    = I2S_LCK,
-                                  .data_out_num = I2S_DOUT,
-                                  .data_in_num  = I2S_PIN_NO_CHANGE};
-   i2s_set_pin(I2S_NUM_0, &pin_config);
-
-   StartNextFile();
 }
 
-f32 t = 0;
+Vec3
+Normalize(Vec3 v)
+{
+   f32 len_inv = 1.f / sqrt((v.x * v.x) + (v.y * v.y) + (v.z * v.z));
+
+   v.x = v.x * len_inv;
+   v.y = v.y * len_inv;
+   v.z = v.z * len_inv;
+
+   return v;
+}
+
+constexpr f32
+Squared(f32 x)
+{
+   return x * x;
+}
+
+struct KalmanEstimate
+{
+   f32 value = 0.f;
+   f32 var   = Squared(2.f); // TODO: Pick value
+};
+
+// www.kalmanfilter.net
+inline void
+KalmanFilterStep(const f32 dt, const f32 measure, const f32 vel_measure,
+                 KalmanEstimate& estimate)
+{
+   constexpr f32 vel_measure_var = Squared(4.f); // TODO: Pick value
+   constexpr f32 measure_var     = Squared(3.f); // TODO: Pick value
+
+   // Predict
+   estimate.value += dt * vel_measure;
+   estimate.var += dt * dt * vel_measure_var;
+
+   // Update
+   f32 kalman_gain = estimate.var / (estimate.var + measure_var);
+   estimate.value += kalman_gain * (measure - estimate.value);
+   estimate.var *= (1.f - kalman_gain);
+}
+
+KalmanEstimate pitch_estimate = {};
+KalmanEstimate roll_estimate  = {};
+
+inline f32
+Clamp(f32 x, f32 min, f32 max)
+{
+   if (x < min)
+      return min;
+   if (x > max)
+      return max;
+   return x;
+}
 
 void
 loop()
 {
-   if (!LoadSamples(wave_file))
-   {
-      StartNextFile();
-   }
+   // if (!LoadSamples(wave_file))
+   // {
+   //    StartNextFile();
+   // }
+   auto accel = ReadAcceleration();
+
+   f32 pitch = -atan(accel.x / sqrt(accel.y * accel.y + accel.z * accel.z));
+   f32 roll  = atan(accel.y / sqrt(accel.x * accel.x + accel.z * accel.z));
+
+   auto gyro = ReadGyroscope();
+
+   gyro.x -= gyro_offset.x;
+   gyro.y -= gyro_offset.y;
+   gyro.z -= gyro_offset.z;
+
+   static auto prev_time = micros();
+   auto        time      = micros();
+   f32         dt        = (f32)(time - prev_time) / 1000000.f;
+   prev_time             = time;
+   KalmanFilterStep(dt, pitch, gyro.y, pitch_estimate);
+   KalmanFilterStep(dt, roll, gyro.x, roll_estimate);
+
+   // Serial.printf(">accelx:%d\n", accel.x);
+   // Serial.printf(">accely:%d\n", accel.y);
+   // Serial.printf(">accelz:%d\n", accel.z);
+
+   // Serial.printf(">gyrox:%d\n", gyro.x);
+   // Serial.printf(">gyroy:%d\n", gyro.y);
+   // Serial.printf(">gyroz:%d\n", gyro.z);
+
+   Serial.printf(">pitch:%f\n", pitch * (180.f / 3.1415f));
+   Serial.printf(">roll:%f\n", roll * (180.f / 3.1415f));
+
+   Serial.printf(">pitch_estimate:%f\n",
+                 pitch_estimate.value * (180.f / 3.1415f));
+   Serial.printf(">roll_estimate:%f\n",
+                 roll_estimate.value * (180.f / 3.1415f));
+
+   Serial.printf(">pitch_estimate_var:%f\n", pitch_estimate.var);
+   Serial.printf(">roll_estimate_var:%f\n", roll_estimate.var);
 }
