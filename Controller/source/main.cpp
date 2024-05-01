@@ -1221,7 +1221,7 @@ struct Timer
     }
 
     Timepoint last_measure;
-    Duration  time_left = Minutes(60);
+    Duration  time = Minutes(0);
 
     bool paused = false;
 
@@ -1239,16 +1239,15 @@ DrawTimer(Timer& timer)
     if (ImGui::Begin(utf8("Chrono")))
     {
         ImGui::Text(utf8("Chrono"));
-        auto millis_left =
-            (s32)DivideAndRoundDown(timer.time_left.count(), 1'000);
-        s32  minutes          = millis_left / 1000 / 60;
-        s32  seconds          = millis_left / 1000 % 60;
-        bool update_time_left = false;
-        auto flags            = ImGuiInputTextFlags_AutoSelectAll;
+        auto millis      = (s32)DivideAndRoundDown(timer.time.count(), 1'000);
+        s32  minutes     = millis / 1000 / 60;
+        s32  seconds     = millis / 1000 % 60;
+        bool update_time = false;
+        auto flags       = ImGuiInputTextFlags_AutoSelectAll;
         ImGui::SetNextItemWidth(100);
         if (ImGui::InputInt("##Minutes", &minutes, 1, 100, flags))
         {
-            update_time_left = true;
+            update_time = true;
         }
         if (ImGui::IsItemActive())
         {
@@ -1260,16 +1259,15 @@ DrawTimer(Timer& timer)
         ImGui::SetNextItemWidth(100);
         if (ImGui::InputInt("##Seconds", &seconds, 1, 100, flags))
         {
-            update_time_left = true;
+            update_time = true;
         }
         if (ImGui::IsItemActive())
         {
             editing = true;
         }
-        if (update_time_left)
+        if (update_time)
         {
-            timer.time_left = Seconds((s64)minutes * 60 + (s64)seconds);
-            timer.time_left += Milliseconds(999);
+            timer.time = Seconds((s64)minutes * 60 + (s64)seconds);
         }
 
         ImGui::BeginDisabled(!timer.paused);
@@ -1328,15 +1326,15 @@ DrawTimer(Timer& timer)
         std::chrono::duration_cast<Duration>(now - timer.last_measure);
     if (!timer.paused && !editing)
     {
-        auto prev = timer.time_left;
-        timer.time_left -= elapsed;
+        auto prev = timer.time;
+        timer.time += elapsed;
 
-        constexpr Duration play_sound_times[] = {Minutes(45), Minutes(30),
-                                                 Minutes(15)};
+        constexpr Duration play_sound_times[] = {Minutes(15), Minutes(30),
+                                                 Minutes(45)};
 
         for (const auto& time : play_sound_times)
         {
-            if (prev >= time && timer.time_left < time)
+            if (prev <= time && timer.time > time)
             {
                 timer.playing = PlayAudio(timer.sounds[timer.sound_selected]);
                 SetGain(timer.playing, timer.sound_gain / 100.f);
