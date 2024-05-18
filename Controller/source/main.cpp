@@ -484,10 +484,14 @@ struct DoorLock
             ImGui::Text(utf8("Porte Hobbit"));
             DrawLock("hobbit", command.lock_door, last_status.lock_door);
             ImGui::Separator();
-            ImGui::Text(utf8("Clef dans l'arbre"));
-            DrawLatchLock(command.lock_tree, last_status.lock_tree,
-                          last_status.tree_open_duration);
-            ImGui::Separator();
+            if (false) // Disable key in tree for now
+            {
+                ImGui::Text(utf8("Clef dans l'arbre"));
+                DrawLatchLock(command.lock_tree, last_status.lock_tree,
+                              last_status.tree_open_duration);
+                ImGui::Separator();
+            }
+
             ImGui::Text(utf8("Mordor"));
             DrawLock("mordor", command.lock_mordor, last_status.lock_mordor);
 
