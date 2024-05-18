@@ -4,7 +4,7 @@
 #include "message_targets.hpp"
 
 #include <ADS1X15.h>
-#include <FastLED.h>
+// #include <FastLED.h>
 
 ClientId this_client_id = ClientId::Targets;
 
@@ -24,31 +24,71 @@ constexpr u8 INBUILT_LED_OUT = 48;
 
 TwoWire i2c = TwoWire(0);
 
-struct AdcChannel
+struct I2cMultiplexer
 {
-    AdcChannel() {}
+    I2cMultiplexer(u8 A0, u8 A1, u8 A2)
+    {
+        // 7 bit address = 1 1 1 0 A2 A1 A0
+        address = 0b1110000;
+        address |= (A0 << 0);
+        address |= (A1 << 1);
+        address |= (A2 << 2);
+    }
 
-    static constexpr u16 sample_count = 16;
+    bool
+    setChannel(u8 channel)
+    {
+        if (curr_channel == channel)
+            return true;
+
+        bool success = false;
+        i2c.beginTransmission(address);
+        i2c.write(1 << channel);
+        auto err = i2c.endTransmission();
+        if (err == 0)
+        {
+            success      = true;
+            curr_channel = channel;
+        }
+        else
+        {
+            Serial.printf("Error: Could not find multiplexer, error %hhu\n",
+                          err);
+        }
+        return success;
+    }
+
+    u8 address;
+    s8 curr_channel = -1;
+};
+
+I2cMultiplexer i2c_multiplexer(0, 0, 0);
+
+struct Adc
+{
+    Adc(u8 i2c_channel_in, u8 addr) :
+        ads(addr, &i2c), i2c_channel(i2c_channel_in)
+    {}
+
+    u8      i2c_channel = 0;
+    ADS1115 ads;
+
+    static constexpr u16 sample_count = 8;
 
     s16  samples[sample_count] = {};
     u16  next_sample           = 0;
     u8   target_index          = 0;
     bool over_threshold        = false;
 
-    u32 average = 0; // Average peak to peak x256
+    // u32 average = 0; // Average peak to peak x256
 };
 
-struct Adc
-{
-    Adc(u8 addr) : ads(addr, &i2c) {}
-
-    ADS1115 ads;
-    u8      curr_request = 0;
-
-    AdcChannel channels[2];
+Adc adcs[] = {
+    Adc(0, 0x48 | 0b00), //
+    Adc(0, 0x48 | 0b01), //
+    Adc(1, 0x48 | 0b00), //
+    Adc(1, 0x48 | 0b01)  //
 };
-
-Adc          adcs[]    = {Adc(0x48 | 0b00), Adc(0x48 | 0b01)};
 constexpr u8 adc_count = sizeof(adcs) / sizeof(adcs[0]);
 
 TargetsStatus status;
@@ -56,19 +96,16 @@ bool          need_resend_status   = false;
 constexpr u32 resend_period        = 100;
 u32           time_last_state_sent = 0;
 
-CRGB led_color;
-
-// constexpr u32 led_count = 50;
-// CRGB          leds[led_count];
+// CRGB led_color;
 
 void
 setup()
 {
     Serial.begin(SERIAL_BAUD_RATE);
 
-    FastLED.addLeds<NEOPIXEL, INBUILT_LED_OUT>(&led_color, 1);
-    led_color = CRGB(255, 0, 0);
-    FastLED.show();
+    // FastLED.addLeds<NEOPIXEL, INBUILT_LED_OUT>(&led_color, 1);
+    // led_color = CRGB(255, 0, 0);
+    // FastLED.show();
 
     // FastLED.addLeds<NEOPIXEL, LEDS_OUT>(leds, led_count);
 
@@ -86,15 +123,16 @@ setup()
 
     for (u8 j = 0; j < adc_count; j++)
     {
-        auto& adc = adcs[j];
+        auto& adc        = adcs[j];
+        adc.target_index = j;
 
-        for (u8 i = 0; i < 2; i++)
-        {
-            adc.channels[i].target_index = j * 2 + i;
-        }
-
+        i2c_multiplexer.setChannel(adc.i2c_channel);
         adc.ads.begin();
-        if (!adc.ads.isConnected())
+        if (adc.ads.isConnected())
+        {
+            Serial.print(F("ADS1115 is connected\n"));
+        }
+        else
         {
             Serial.print(F("ADS1115 is not connected\n"));
             continue;
@@ -112,7 +150,6 @@ setup()
         adc.ads.setMode(1); // Single shot mode
 
         adc.ads.requestADC_Differential_0_1();
-        adc.curr_request = 0;
     }
 
     Serial.println(F("Start wifi"));
@@ -155,7 +192,7 @@ u32 hit_time     = 0;
 u32 hit_duration = 3000;
 
 void
-NewSample(AdcChannel& ch, s16 value)
+NewSample(Adc& ch, s16 value)
 {
     ch.samples[ch.next_sample] = value;
     ch.next_sample             = (ch.next_sample + 1) % ch.sample_count;
@@ -174,78 +211,78 @@ NewSample(AdcChannel& ch, s16 value)
 
     // if (status.enabled & (1 << ch.target_index))
     // {
-    //     Serial.printf(">piezo%d:%d\n", ch.target_index, peak_to_peak);
-    //     Serial.printf(">piezo_value%d:%d\n", ch.target_index, value);
-    //     Serial.printf(">avg%d:%d\n", ch.target_index, ch.average / 256);
+    Serial.printf(">piezo%d:%d\n", ch.target_index, peak_to_peak);
+    Serial.printf(">piezo_value%d:%d\n", ch.target_index, value);
+    // Serial.printf(">avg%d:%d\n", ch.target_index, ch.average / 256);
     // }
 
-    s16 threshold = 3 * ch.average / 256;
-    if (peak_to_peak > threshold)
-    {
-        if (!ch.over_threshold)
-        {
-            ch.over_threshold = true;
-            if (status.enabled & (1 << ch.target_index))
-            {
-                constexpr s8 hp_min = -10;
-                if (status.hitpoints[ch.target_index] > hp_min)
-                {
-                    status.hitpoints[ch.target_index]--;
-                    need_resend_status = true;
+    // s16 threshold = 3 * ch.average / 256;
+    // if (peak_to_peak > threshold)
+    // {
+    //     if (!ch.over_threshold)
+    //     {
+    //         ch.over_threshold = true;
+    //         if (status.enabled & (1 << ch.target_index))
+    //         {
+    //             constexpr s8 hp_min = -10;
+    //             if (status.hitpoints[ch.target_index] > hp_min)
+    //             {
+    //                 status.hitpoints[ch.target_index]--;
+    //                 need_resend_status = true;
 
-                    hit_time = millis();
-                }
-            }
-        }
-        ch.average -= ch.average / 256 / 4;
-        ch.average += peak_to_peak / 4;
-    }
-    else
-    {
-        ch.average -= ch.average / 256;
-        ch.average += peak_to_peak;
-        ch.over_threshold = false;
-    }
-    if (ch.average < 5 * 256)
-    {
-        ch.average = 5 * 256;
-    }
+    //                 hit_time = millis();
+    //             }
+    //         }
+    //     }
+    //     ch.average -= ch.average / 256 / 4;
+    //     ch.average += peak_to_peak / 4;
+    // }
+    // else
+    // {
+    //     ch.average -= ch.average / 256;
+    //     ch.average += peak_to_peak;
+    //     ch.over_threshold = false;
+    // }
+    // if (ch.average < 5 * 256)
+    // {
+    //     ch.average = 5 * 256;
+    // }
 }
 
 void
 loop()
 {
-    constexpr u32 led_update_period = 1000 / 60;
-    static u32    next_led_update   = millis();
-    if (millis() > next_led_update)
-    {
-        next_led_update += led_update_period;
-        // led_color = CRGB(CHSV(beatsin16(4, 0, 255), 255, 255));
+    // constexpr u32 led_update_period = 1000 / 60;
+    // static u32    next_led_update   = millis();
+    // if (millis() > next_led_update)
+    // {
+    //     next_led_update += led_update_period;
+    //     // led_color = CRGB(CHSV(beatsin16(4, 0, 255), 255, 255));
 
-        accum88 bpm = 40 * 255;
-        if (hit_time != 0)
-        {
-            if (millis() < hit_time + hit_duration)
-            {
-                bpm = 200 * 255;
-            }
-            else
-            {
-                hit_time = 0;
-            }
-        }
+    //     accum88 bpm = 40 * 255;
+    //     if (hit_time != 0)
+    //     {
+    //         if (millis() < hit_time + hit_duration)
+    //         {
+    //             bpm = 200 * 255;
+    //         }
+    //         else
+    //         {
+    //             hit_time = 0;
+    //         }
+    //     }
 
-        if (hit_time == 0 && status.talk & (1 << 0))
-        {
-            led_color = CRGB(255, 0, 0);
-        }
-        else
-        {
-            led_color = CRGB(CHSV(beatsin88(bpm, 0, 20), 255, 255));
-        }
+    //     if (hit_time == 0 && status.talk & (1 << 0))
+    //     {
+    //         led_color = CRGB(255, 0, 0);
+    //     }
+    //     else
+    //     {
+    //         led_color = CRGB(CHSV(beatsin88(bpm, 0, 20), 255, 255));
+    //     }
 
-        FastLED.show();
-    }
+    //     FastLED.show();
+    // }
 
     if (need_resend_status && wifi_state == WifiState::Connected)
     {
@@ -321,20 +358,12 @@ loop()
     for (u8 j = 0; j < adc_count; j++)
     {
         auto& adc = adcs[j];
+        i2c_multiplexer.setChannel(adc.i2c_channel);
         if (adc.ads.isReady())
         {
             s16 value = adc.ads.getValue();
-            NewSample(adc.channels[adc.curr_request], value);
-
-            adc.curr_request = adc.curr_request ? 0 : 1;
-            if (adc.curr_request)
-            {
-                adc.ads.requestADC_Differential_2_3();
-            }
-            else
-            {
-                adc.ads.requestADC_Differential_0_1();
-            }
+            NewSample(adc, value);
+            adc.ads.requestADC_Differential_0_1();
         }
     }
 }
