@@ -32,7 +32,8 @@ f32    volume = 0.1;
 SdFat32  SD;
 SPIClass vSPI;
 
-constexpr u16 MPU6050_address = 0x68;
+constexpr u16 MPU6050_address        = 0x68;
+constexpr u16 LSM303DLHC_mag_address = 0x1E;
 
 /*
    FS_SEL
@@ -472,19 +473,15 @@ ReadAcceleration()
    Wire.write(0x3B);
    Wire.endTransmission();
    Wire.requestFrom(MPU6050_address, (size_t)6);
-   s16 x = Wire.read() << 8 | Wire.read();
-   s16 y = Wire.read() << 8 | Wire.read();
-   s16 z = Wire.read() << 8 | Wire.read();
+   s16 x = (Wire.read() << 8) | Wire.read();
+   s16 y = (Wire.read() << 8) | Wire.read();
+   s16 z = (Wire.read() << 8) | Wire.read();
 
    constexpr f32 scale = (f32)FS_SEL_values[FS_SEL] / S16_MAX;
 
    a.x = x * scale;
    a.y = y * scale;
    a.z = z * scale;
-
-   // a.x = (f32)x;
-   // a.y = (f32)y;
-   // a.z = (f32)z;
 
    return a;
 }
@@ -497,9 +494,9 @@ ReadGyroscope()
    Wire.write(0x43);
    Wire.endTransmission();
    Wire.requestFrom(MPU6050_address, (size_t)6);
-   s16 x = Wire.read() << 8 | Wire.read();
-   s16 y = Wire.read() << 8 | Wire.read();
-   s16 z = Wire.read() << 8 | Wire.read();
+   s16 x = (Wire.read() << 8) | Wire.read();
+   s16 y = (Wire.read() << 8) | Wire.read();
+   s16 z = (Wire.read() << 8) | Wire.read();
 
    constexpr f32 scale = (f32)AFS_SEL_values[AFS_SEL] / S16_MAX;
 
@@ -510,7 +507,112 @@ ReadGyroscope()
    return a;
 }
 
-Vec3 gyro_offset;
+bool
+ReadMagneticField(Vec3& a)
+{
+   Wire.beginTransmission(LSM303DLHC_mag_address);
+   Wire.write(0x09);
+   Wire.endTransmission();
+   Wire.requestFrom(LSM303DLHC_mag_address, (size_t)1);
+   u8 SR_REG_M = Wire.read();
+   // DRDY (Data-ready bit) is always one and I don't understand why.
+   // LOCK (Data output register lock) seems to be set to 0 when new data is
+   // available.
+   if (SR_REG_M & 0b10)
+   {
+      return false;
+   }
+
+   Wire.beginTransmission(LSM303DLHC_mag_address);
+   Wire.write(0x03);
+   Wire.endTransmission();
+   Wire.requestFrom(LSM303DLHC_mag_address, (size_t)6);
+   s16 x = (Wire.read() << 8) | Wire.read();
+   s16 z = (Wire.read() << 8) | Wire.read();
+   s16 y = (Wire.read() << 8) | Wire.read();
+
+   // input field range[Gauss] ±1.3
+   // Output range -2048 to +2047
+
+   // constexpr f32 scale = 1.f;
+   constexpr f32 scale = 1.3f / 2047;
+
+   a.x = x * scale;
+   a.y = y * scale;
+   a.z = z * scale;
+
+   return true;
+}
+
+Vec3
+Normalize(Vec3 v)
+{
+   f32 len_inv = 1.f / sqrt((v.x * v.x) + (v.y * v.y) + (v.z * v.z));
+
+   v.x = v.x * len_inv;
+   v.y = v.y * len_inv;
+   v.z = v.z * len_inv;
+
+   return v;
+}
+
+inline f32
+NormalizeMag(f32 value, f32 min, f32 max)
+{
+   f32 n = 0.f;
+   if (max - min > 0.4f)
+   {
+      n = (value - min) / (max - min) * 2.f - 1.f;
+   }
+   return n;
+}
+
+constexpr f32
+Squared(f32 x)
+{
+   return x * x;
+}
+
+struct KalmanEstimate
+{
+   f32 value = 0.f;
+   f32 var   = Squared(2.f); // TODO: Pick value
+};
+
+// www.kalmanfilter.net
+inline void
+KalmanFilterStep(const f32 dt, const f32 measure, const f32 vel_measure,
+                 KalmanEstimate& estimate)
+{
+   constexpr f32 vel_measure_var = Squared(4.f); // TODO: Pick value
+   constexpr f32 measure_var     = Squared(3.f); // TODO: Pick value
+
+   // Predict
+   estimate.value += dt * vel_measure;
+   estimate.var += dt * dt * vel_measure_var;
+
+   // Update
+   f32 kalman_gain = estimate.var / (estimate.var + measure_var);
+   estimate.value += kalman_gain * (measure - estimate.value);
+   estimate.var *= (1.f - kalman_gain);
+}
+
+inline f32
+Clamp(f32 x, f32 min, f32 max)
+{
+   if (x < min)
+      return min;
+   if (x > max)
+      return max;
+   return x;
+}
+
+Vec3           gyro_offset;
+KalmanEstimate pitch_estimate = {};
+KalmanEstimate roll_estimate  = {};
+KalmanEstimate yaw_estimate   = {};
+Vec3           mag_min;
+Vec3           mag_max;
 
 void
 setup()
@@ -523,78 +625,76 @@ setup()
                 "." STRINGIFY(ESP_ARDUINO_VERSION_MINOR)                    //
                 "." STRINGIFY(ESP_ARDUINO_VERSION_PATCH) "\n");             //
 
-   // vSPI.begin(SD_CLK, SD_MISO, SD_MOSI, SD_CS);
-   // if (!SD.begin(SdSpiConfig(SD_CS, DEDICATED_SPI, SD_SCK_MHZ(20), &vSPI)))
-   // {
-   //    if (SD.card()->errorCode())
-   //    {
-   //       Serial.println(F("\nSD initialization failed.\n"
-   //                        "Do not reformat the card!\n"
-   //                        "Is the card correctly inserted?\n"
-   //                        "Is chipSelect set to the correct value?\n"
-   //                        "Does another SPI device need to be disabled?\n"
-   //                        "Is there a wiring/soldering problem?\n"));
-   //       Serial.print(F("errorCode: "));
-   //       Serial.println(int(SD.card()->errorCode()), HEX);
-   //       Serial.print(F("errorData: "));
-   //       Serial.println(int(SD.card()->errorData()));
-   //       return;
-   //    }
+   vSPI.begin(SD_CLK, SD_MISO, SD_MOSI, SD_CS);
+   if (!SD.begin(SdSpiConfig(SD_CS, DEDICATED_SPI, SD_SCK_MHZ(20), &vSPI)))
+   {
+      if (SD.card()->errorCode())
+      {
+         Serial.println(F("\nSD initialization failed.\n"
+                          "Do not reformat the card!\n"
+                          "Is the card correctly inserted?\n"
+                          "Is chipSelect set to the correct value?\n"
+                          "Does another SPI device need to be disabled?\n"
+                          "Is there a wiring/soldering problem?\n"));
+         Serial.print(F("errorCode: "));
+         Serial.println(int(SD.card()->errorCode()), HEX);
+         Serial.print(F("errorData: "));
+         Serial.println(int(SD.card()->errorData()));
+         return;
+      }
 
-   //    if (SD.vol()->fatType() == 0)
-   //    {
-   //       Serial.println(F("Can't find a valid FAT16/FAT32 partition."));
-   //       return;
-   //    }
-   //    else
-   //    {
-   //       Serial.println(F("Can't determine error type\n"));
-   //       return;
-   //    }
-   // }
-   // Serial.println(F("Card successfully initialized."));
+      if (SD.vol()->fatType() == 0)
+      {
+         Serial.println(F("Can't find a valid FAT16/FAT32 partition."));
+         return;
+      }
+      else
+      {
+         Serial.println(F("Can't determine error type\n"));
+         return;
+      }
+   }
+   Serial.println(F("Card successfully initialized."));
 
-   // uint32_t size = SD.card()->sectorCount();
-   // if (size == 0)
-   // {
-   //    Serial.println(
-   //        F("Can't determine the card size.\n Try another SD card or "
-   //          "reduce the SPI bus speed."));
-   // }
-   // else
-   // {
-   //    uint32_t sizeMB = 0.000512 * size + 0.5;
-   //    Serial.print("SD Card Size:");
-   //    Serial.print(sizeMB);
-   //    Serial.println("MB");
+   uint32_t size = SD.card()->sectorCount();
+   if (size == 0)
+   {
+      Serial.println(
+          F("Can't determine the card size.\n Try another SD card or "
+            "reduce the SPI bus speed."));
+   }
+   else
+   {
+      uint32_t sizeMB = 0.000512 * size + 0.5;
+      Serial.print("SD Card Size:");
+      Serial.print(sizeMB);
+      Serial.println("MB");
 
-   //    if ((sizeMB > 1100 && SD.vol()->sectorsPerCluster() < 64)
-   //        || (sizeMB < 2200 && SD.vol()->fatType() == 32))
-   //    {
-   //       Serial.print(
-   //           F("\nThis card should be reformatted for best performance.\n"));
-   //       Serial.print(
-   //           F("Use a cluster size of 32 KB for cards larger than 1 GB.\n"));
-   //       Serial.print(
-   //           F("Only cards larger than 2 GB should be formatted FAT32.\n"));
-   //    }
-   // }
+      if ((sizeMB > 1100 && SD.vol()->sectorsPerCluster() < 64)
+          || (sizeMB < 2200 && SD.vol()->fatType() == 32))
+      {
+         Serial.print(
+             F("\nThis card should be reformatted for best performance.\n"));
+         Serial.print(
+             F("Use a cluster size of 32 KB for cards larger than 1GB.\n"));
+         Serial.print(
+             F("Only cards larger than 2 GB should be formatted FAT32.\n"));
+      }
+   }
 
    // sound_dir = SD.open("/");
    // PrintDirectory(sound_dir);
 
    // i2s_config_t i2s_config = {
-   //     .mode                 = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX),
-   //     .sample_rate          = 44100,
-   //     .bits_per_sample      = I2S_BITS_PER_SAMPLE_16BIT,
-   //     .channel_format       = I2S_CHANNEL_FMT_RIGHT_LEFT, // Stereo
-   //     .communication_format = I2S_COMM_FORMAT_STAND_I2S,
-   //     .intr_alloc_flags     = 0, // Default interrupt priority
-   //     .dma_buf_count        = 8,
-   //     .dma_buf_len          = 256, // TODO: pick buffer length, default 64
-   //     .use_apll             = false,
-   //     .tx_desc_auto_clear   = true, // Auto clear tx descriptor on underflow
-   //     .fixed_mclk           = 0};
+   //     .mode                 = (i2s_mode_t)(I2S_MODE_MASTER |
+   //     I2S_MODE_TX), .sample_rate          = 44100, .bits_per_sample =
+   //     I2S_BITS_PER_SAMPLE_16BIT, .channel_format       =
+   //     I2S_CHANNEL_FMT_RIGHT_LEFT, // Stereo .communication_format =
+   //     I2S_COMM_FORMAT_STAND_I2S, .intr_alloc_flags     = 0, // Default
+   //     interrupt priority .dma_buf_count        = 8, .dma_buf_len = 256,
+   //     // TODO: pick buffer length, default 64 .use_apll             =
+   //     false, .tx_desc_auto_clear   = true, // Auto clear tx descriptor on
+   //     underflow .fixed_mclk           = 0};
 
    // i2s_driver_install(I2S_NUM_0, &i2s_config, 0, NULL);
 
@@ -637,61 +737,45 @@ setup()
       gyro_offset.y += gyro.y / 1000.f;
       gyro_offset.z += gyro.z / 1000.f;
    }
+
+   u8 data_rate = 0b100; // 15Hz
+   Wire.beginTransmission(LSM303DLHC_mag_address);
+   Wire.write(0x00); // CRA_REG_M
+   Wire.write(data_rate << 2);
+   Wire.endTransmission();
+
+   u8 mag_gain = 0b000; //  input field range[Gauss] ±1.3
+   // Output range -2048 to +2047
+   Wire.beginTransmission(LSM303DLHC_mag_address);
+   Wire.write(0x01); // CRB_REG_M
+   Wire.write(mag_gain << 5);
+   Wire.endTransmission();
+
+   u8 MR_REG_M = 0b00; //  Continuous-conversion mode
+   Wire.beginTransmission(LSM303DLHC_mag_address);
+   Wire.write(0x02);
+   Wire.write(MR_REG_M);
+   Wire.endTransmission();
+
+   while (!ReadMagneticField(mag_min))
+      ;
+   mag_max = mag_min;
 }
 
-Vec3
-Normalize(Vec3 v)
+inline Vec3
+Cross(const Vec3& a, const Vec3& b)
 {
-   f32 len_inv = 1.f / sqrt((v.x * v.x) + (v.y * v.y) + (v.z * v.z));
-
-   v.x = v.x * len_inv;
-   v.y = v.y * len_inv;
-   v.z = v.z * len_inv;
-
-   return v;
+   Vec3 result;
+   result.x = a.y * b.z - a.z * b.y;
+   result.y = a.z * b.x - a.x * b.z;
+   result.z = a.x * b.y - a.y * b.x;
+   return result;
 }
-
-constexpr f32
-Squared(f32 x)
-{
-   return x * x;
-}
-
-struct KalmanEstimate
-{
-   f32 value = 0.f;
-   f32 var   = Squared(2.f); // TODO: Pick value
-};
-
-// www.kalmanfilter.net
-inline void
-KalmanFilterStep(const f32 dt, const f32 measure, const f32 vel_measure,
-                 KalmanEstimate& estimate)
-{
-   constexpr f32 vel_measure_var = Squared(4.f); // TODO: Pick value
-   constexpr f32 measure_var     = Squared(3.f); // TODO: Pick value
-
-   // Predict
-   estimate.value += dt * vel_measure;
-   estimate.var += dt * dt * vel_measure_var;
-
-   // Update
-   f32 kalman_gain = estimate.var / (estimate.var + measure_var);
-   estimate.value += kalman_gain * (measure - estimate.value);
-   estimate.var *= (1.f - kalman_gain);
-}
-
-KalmanEstimate pitch_estimate = {};
-KalmanEstimate roll_estimate  = {};
 
 inline f32
-Clamp(f32 x, f32 min, f32 max)
+Dot(const Vec3& a, const Vec3& b)
 {
-   if (x < min)
-      return min;
-   if (x > max)
-      return max;
-   return x;
+   return a.x * b.x + a.y * b.y + a.z * b.z;
 }
 
 void
@@ -712,12 +796,14 @@ loop()
    gyro.y -= gyro_offset.y;
    gyro.z -= gyro_offset.z;
 
-   static auto prev_time = micros();
-   auto        time      = micros();
-   f32         dt        = (f32)(time - prev_time) / 1000000.f;
-   prev_time             = time;
-   KalmanFilterStep(dt, pitch, gyro.y, pitch_estimate);
-   KalmanFilterStep(dt, roll, gyro.x, roll_estimate);
+   {
+      static auto prev_time = micros();
+      auto        time      = micros();
+      f32         dt        = (f32)(time - prev_time) / 1000000.f;
+      prev_time             = time;
+      KalmanFilterStep(dt, pitch, gyro.y, pitch_estimate);
+      KalmanFilterStep(dt, roll, gyro.x, roll_estimate);
+   }
 
    // Serial.printf(">accelx:%d\n", accel.x);
    // Serial.printf(">accely:%d\n", accel.y);
@@ -727,14 +813,71 @@ loop()
    // Serial.printf(">gyroy:%d\n", gyro.y);
    // Serial.printf(">gyroz:%d\n", gyro.z);
 
-   Serial.printf(">pitch:%f\n", pitch * (180.f / 3.1415f));
-   Serial.printf(">roll:%f\n", roll * (180.f / 3.1415f));
+   Serial.printf(">pitch:%f\n", pitch * (180.f / PI));
+   Serial.printf(">roll:%f\n", roll * (180.f / PI));
 
-   Serial.printf(">pitch_estimate:%f\n",
-                 pitch_estimate.value * (180.f / 3.1415f));
-   Serial.printf(">roll_estimate:%f\n",
-                 roll_estimate.value * (180.f / 3.1415f));
+   Serial.printf(">pitch_estimate:%f\n", pitch_estimate.value * (180.f / PI));
+   Serial.printf(">roll_estimate:%f\n", roll_estimate.value * (180.f / PI));
 
    Serial.printf(">pitch_estimate_var:%f\n", pitch_estimate.var);
    Serial.printf(">roll_estimate_var:%f\n", roll_estimate.var);
+
+   Vec3 mag;
+   if (ReadMagneticField(mag))
+   {
+      // Vec3 dir;
+      // // dir.x = cos(roll_estimate.value) * cos(pitch_estimate.value);
+      // // dir.y = sin(roll_estimate.value) * cos(pitch_estimate.value);
+      // // dir.z = sin(pitch_estimate.value);
+      // dir.x = cos(pitch_estimate.value) * cos(roll_estimate.value);
+      // dir.y = sin(pitch_estimate.value) * cos(roll_estimate.value);
+      // dir.z = sin(roll_estimate.value);
+      // // X+: down
+      // // Z+: usb
+      // // Y+:  "left" (right hand rule)
+
+      // // TODO: Improve this
+      // Vec3 u1 = Cross(dir, {0.f, 1.f, 0.f});
+      // Vec3 u2 = Cross(dir, u1);
+
+      // Serial.printf(">dirx:%f\n", dir.x);
+      // Serial.printf(">diry:%f\n", dir.y);
+      // Serial.printf(">dirz:%f\n", dir.z);
+
+      mag_min.x = min(mag_min.x, mag.x);
+      mag_min.y = min(mag_min.y, mag.y);
+      // mag_min.z = min(mag_min.z, mag.z);
+
+      mag_max.x = max(mag_max.x, mag.x);
+      mag_max.y = max(mag_max.y, mag.y);
+      // mag_max.z = max(mag_max.z, mag.z);
+
+      Vec3 mag_n;
+      mag_n.x = NormalizeMag(mag.x, mag_min.x, mag_max.x);
+      mag_n.y = NormalizeMag(mag.y, mag_min.y, mag_max.y);
+      // mag_n.z = NormalizeMag(mag.z, mag_min.z, mag_max.z);
+
+      // f32 mag_x = Dot(mag_n, u1);
+      // f32 mag_y = Dot(mag_n, u2);
+
+      Serial.printf(">magx:%f\n", mag.x);
+      Serial.printf(">magy:%f\n", mag.y);
+      // Serial.printf(">magz:%f\n", mag.z);
+
+      Serial.printf(">mag_n_x:%f\n", mag_n.x);
+      Serial.printf(">mag_n_y:%f\n", mag_n.y);
+      // Serial.printf(">mag_x:%f\n", mag_x);
+      // Serial.printf(">mag_y:%f\n", mag_y);
+
+      f32 yaw = -atan2(mag_n.y, mag_n.x);
+
+      static auto prev_time = micros();
+      auto        time      = micros();
+      f32         dt        = (f32)(time - prev_time) / 1000000.f;
+      prev_time             = time;
+      KalmanFilterStep(dt, yaw, gyro.z, yaw_estimate);
+
+      Serial.printf(">yaw:%f\n", yaw * (180.f / PI));
+      Serial.printf(">yaw_estimate:%f\n", yaw_estimate.value * (180.f / PI));
+   }
 }
