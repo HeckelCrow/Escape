@@ -12,6 +12,10 @@ struct TargetsCommand
         {
             h = -1;
         }
+        for (auto& th : thresholds)
+        {
+            th = 10000;
+        }
     }
 
     MessageHeader
@@ -35,20 +39,28 @@ struct TargetsCommand
         {
             Serialize(hitpoints[i], s);
             Serialize(set_hitpoints[i], s);
+            Serialize(thresholds[i], s);
         }
         Serialize(send_sensor_data, s);
     }
 
-    u8 ask_for_ack                 = 0;
-    u8 enable                      = 0;
-    s8 hitpoints[target_count]     = {0};
-    s8 set_hitpoints[target_count] = {0};
-    u8 send_sensor_data            = 0;
+    u8  ask_for_ack                 = 0;
+    u8  enable                      = 0;
+    s8  hitpoints[target_count]     = {0};
+    s8  set_hitpoints[target_count] = {0};
+    u16 thresholds[target_count]    = {0};
+    u8  send_sensor_data            = 0;
 };
 
 struct TargetsStatus
 {
-    TargetsStatus() {}
+    TargetsStatus()
+    {
+        for (auto& th : thresholds)
+        {
+            th = 10000;
+        }
+    }
 
     MessageHeader
     getHeader()
@@ -70,13 +82,15 @@ struct TargetsStatus
         for (u32 i = 0; i < target_count_msg; i++)
         {
             Serialize(hitpoints[i], s);
+            Serialize(thresholds[i], s);
         }
     }
 
-    u8 ask_for_ack             = 0;
-    u8 enabled                 = 0;
-    s8 hitpoints[target_count] = {0};
-    s8 send_sensor_data        = -1;
+    u8  ask_for_ack              = 0;
+    u8  enabled                  = 0;
+    s8  hitpoints[target_count]  = {0};
+    u16 thresholds[target_count] = {0};
+    s8  send_sensor_data         = -1;
 };
 
 struct TargetsGraph
@@ -104,6 +118,6 @@ struct TargetsGraph
     }
 
     static constexpr u16 buffer_max_count                       = 64;
-    u16                  buffer[target_count][buffer_max_count] = {};
-    u16                  buffer_count[target_count]             = {};
+    u16                  buffer[target_count][buffer_max_count] = {0};
+    u16                  buffer_count[target_count]             = {0};
 };

@@ -168,6 +168,8 @@ SetCommand(TargetsCommand cmd)
                 // Disabled
             }
         }
+
+        status.thresholds[i] = cmd.thresholds[i];
     }
     status.enabled = cmd.enable;
     if (status.send_sensor_data != cmd.send_sensor_data)
@@ -181,8 +183,8 @@ SetCommand(TargetsCommand cmd)
     }
 }
 
-u32 hit_time     = 0;
-u32 hit_duration = 3000;
+// u32 hit_time     = 0;
+// u32 hit_duration = 3000;
 
 void
 NewSample(Sensor& ch, s16 value)
@@ -220,10 +222,30 @@ NewSample(Sensor& ch, s16 value)
     // Serial.printf(">avg%d:%d\n", ch.target_index, ch.average / 256);
     // }
 
-    if (peak_to_peak > 1000)
+    if (peak_to_peak >= status.thresholds[ch.target_index])
     {
-        led_color = CRGB(CHSV(beatsin16(4, 0, 255), 255, 255));
-        FastLED.show();
+        if (!ch.over_threshold)
+        {
+            ch.over_threshold = true;
+            if (status.enabled & (1 << ch.target_index))
+            {
+                constexpr s8 hp_min = -10;
+                if (status.hitpoints[ch.target_index] > hp_min)
+                {
+                    status.hitpoints[ch.target_index]--;
+                    need_resend_status = true;
+
+                    // hit_time = millis();
+
+                    led_color = CRGB(CHSV(beatsin16(4, 0, 255), 255, 255));
+                    FastLED.show();
+                }
+            }
+        }
+    }
+    else if (peak_to_peak < status.thresholds[ch.target_index] / 2)
+    {
+        ch.over_threshold = false;
     }
 }
 

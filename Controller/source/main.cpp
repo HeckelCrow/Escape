@@ -27,6 +27,7 @@
 #include <chrono>
 #include <atomic>
 #include <random>
+#include <charconv>
 
 #include "msg/message_door_lock.hpp"
 #include "msg/message_targets.hpp"
@@ -828,6 +829,10 @@ struct Targets
             {
                 need_update = true;
             }
+            if (command.thresholds[i] != last_status.thresholds[i])
+            {
+                need_update = true;
+            }
         }
 
         if (client.connection.socket)
@@ -1349,6 +1354,36 @@ DrawTimer(Timer& timer)
     timer.last_measure = now;
 }
 
+template<typename T>
+bool
+Read(StrPtr str, u64& i, T& value)
+{
+    auto [ptr, ec] =
+        std::from_chars(str.data() + i, str.data() + str.size(), value);
+    if (ec == std::errc())
+    {
+        i = ptr - str.data();
+        return true;
+    }
+    return false;
+}
+
+bool
+ReadAllSpaces(StrPtr str, u64& i)
+{
+    bool found_space = false;
+    while (i < str.size())
+    {
+        if (str[i] != ' ' && str[i] != '\t' && str[i] != '\n')
+        {
+            break;
+        }
+        found_space = true;
+        i++;
+    }
+    return found_space;
+}
+
 int
 main()
 {
@@ -1511,6 +1546,31 @@ main()
                                }
                                targets.command.send_sensor_data = show;
                            }));
+
+    RegisterConsoleCommand(
+        "setthreshold", std::vector<StrPtr>{"u8 target", "u16 value"},
+        std::function([&](StrPtr args) {
+            u64 i = 0;
+            ReadAllSpaces(args, i);
+            u8 target;
+            if (!Read(args, i, target))
+                return;
+            ReadAllSpaces(args, i);
+            u16 value;
+            if (!Read(args, i, value))
+                return;
+
+            if (target > 0 && target <= target_count)
+            {
+                PrintSuccess("Target {} threshold set to {}\n", target, value);
+                targets.command.thresholds[target - 1] = value;
+            }
+            else
+            {
+                PrintWarning("Target {} is invalid (min {}, max {})\n", target,
+                             1, target_count);
+            }
+        }));
 
     auto time_start = Clock::now();
     glfwShowWindow(window);

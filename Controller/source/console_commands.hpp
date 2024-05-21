@@ -33,6 +33,13 @@ StringToArg(StrPtr str)
     return x;
 }
 
+template<>
+inline std::optional<StrPtr>
+StringToArg(StrPtr str)
+{
+    return str;
+}
+
 template<u32 N>
 struct ApplyArgRecursive
 {
@@ -352,7 +359,8 @@ extern Commands console_commands;
 
 template<typename T>
 inline void
-RegisterConsoleCommand(StrPtr name, std::vector<StrPtr> arg_names, T function)
+RegisterConsoleCommand(StrPtr name, const std::vector<StrPtr>& arg_names,
+                       T function)
 {
     console_commands.bind(name, arg_names, function);
 }
