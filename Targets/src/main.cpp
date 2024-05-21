@@ -24,71 +24,28 @@ constexpr u8 INBUILT_LED_OUT = 48;
 
 TwoWire i2c = TwoWire(0);
 
-struct I2cMultiplexer
+struct Sensor
 {
-    I2cMultiplexer(u8 A0, u8 A1, u8 A2)
-    {
-        // 7 bit address = 1 1 1 0 A2 A1 A0
-        address = 0b1110000;
-        address |= (A0 << 0);
-        address |= (A1 << 1);
-        address |= (A2 << 2);
-    }
-
-    bool
-    setChannel(u8 channel)
-    {
-        if (curr_channel == channel)
-            return true;
-
-        bool success = false;
-        i2c.beginTransmission(address);
-        i2c.write(1 << channel);
-        auto err = i2c.endTransmission();
-        if (err == 0)
-        {
-            success      = true;
-            curr_channel = channel;
-        }
-        else
-        {
-            Serial.printf("Error: Could not find multiplexer, error %hhu\n",
-                          err);
-        }
-        return success;
-    }
-
-    u8 address;
-    s8 curr_channel = -1;
-};
-
-I2cMultiplexer i2c_multiplexer(0, 0, 0);
-
-struct Adc
-{
-    Adc(u8 i2c_channel_in, u8 addr) :
-        ads(addr, &i2c), i2c_channel(i2c_channel_in)
-    {}
-
-    u8      i2c_channel = 0;
-    ADS1115 ads;
-
     static constexpr u16 sample_count = 8;
 
     s16  samples[sample_count] = {};
     u16  next_sample           = 0;
     u8   target_index          = 0;
     bool over_threshold        = false;
-    u8   curr_request          = 0;
+};
 
-    // u32 average = 0; // Average peak to peak x256
+struct Adc
+{
+    Adc(u8 addr) : ads(addr, &i2c) {}
+
+    ADS1115 ads;
+    Sensor  channels[2];
+    u8      curr_request = 0;
 };
 
 Adc adcs[] = {
-    // Adc(0, 0x48 | 0b00), //
-    Adc(0, 0x48 | 0b01), //
-    // Adc(1, 0x48 | 0b10), //
-    // Adc(1, 0x48 | 0b01)  //
+    Adc(0x48 | 0b00), //
+    Adc(0x48 | 0b01), //
 };
 constexpr u8 adc_count = sizeof(adcs) / sizeof(adcs[0]);
 
@@ -126,10 +83,13 @@ setup()
 
     for (u8 j = 0; j < adc_count; j++)
     {
-        auto& adc        = adcs[j];
-        adc.target_index = j;
+        auto& adc = adcs[j];
 
-        i2c_multiplexer.setChannel(adc.i2c_channel);
+        for (u8 i = 0; i < 2; i++)
+        {
+            adc.channels[i].target_index = j * 2 + i;
+        }
+
         adc.ads.begin();
         if (adc.ads.isConnected())
         {
@@ -153,6 +113,7 @@ setup()
         adc.ads.setMode(1);     // Single shot mode
         adc.ads.setDataRate(7); // 6: 475 SPS, 7: 860
 
+        adc.curr_request = 0;
         adc.ads.requestADC_Differential_0_1();
     }
 
@@ -224,7 +185,7 @@ u32 hit_time     = 0;
 u32 hit_duration = 3000;
 
 void
-NewSample(Adc& ch, s16 value)
+NewSample(Sensor& ch, s16 value)
 {
     ch.samples[ch.next_sample] = value;
     ch.next_sample             = (ch.next_sample + 1) % ch.sample_count;
@@ -264,38 +225,6 @@ NewSample(Adc& ch, s16 value)
         led_color = CRGB(CHSV(beatsin16(4, 0, 255), 255, 255));
         FastLED.show();
     }
-
-    // s16 threshold = 3 * ch.average / 256;
-    // if (peak_to_peak > threshold)
-    // {
-    //     if (!ch.over_threshold)
-    //     {
-    //         ch.over_threshold = true;
-    //         if (status.enabled & (1 << ch.target_index))
-    //         {
-    //             constexpr s8 hp_min = -10;
-    //             if (status.hitpoints[ch.target_index] > hp_min)
-    //             {
-    //                 status.hitpoints[ch.target_index]--;
-    //                 need_resend_status = true;
-
-    //                 hit_time = millis();
-    //             }
-    //         }
-    //     }
-    //     ch.average -= ch.average / 256 / 4;
-    //     ch.average += peak_to_peak / 4;
-    // }
-    // else
-    // {
-    //     ch.average -= ch.average / 256;
-    //     ch.average += peak_to_peak;
-    //     ch.over_threshold = false;
-    // }
-    // if (ch.average < 5 * 256)
-    // {
-    //     ch.average = 5 * 256;
-    // }
 }
 
 void
@@ -407,14 +336,11 @@ loop()
     for (u8 j = 0; j < adc_count; j++)
     {
         auto& adc = adcs[j];
-        i2c_multiplexer.setChannel(adc.i2c_channel);
         if (adc.ads.isReady())
         {
             s16 value = adc.ads.getValue();
-            if (adc.curr_request == 0)
-            {
-                NewSample(adc, value);
-            }
+
+            NewSample(adc.channels[adc.curr_request], value);
 
             adc.curr_request = (adc.curr_request == 0) ? 1 : 0;
             if (adc.curr_request == 0)
