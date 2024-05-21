@@ -1,5 +1,6 @@
 #include "server.hpp"
 #include "print.hpp"
+#include "file_io.hpp"
 
 // #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
@@ -29,29 +30,6 @@ AsioErrorToUtf8(asio::error_code error)
     WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), (int)wstr.size(), &utf8[0],
                         size_needed, NULL, NULL);
 
-    return utf8;
-}
-
-Str
-WideCharToUtf8(const wchar_t* wide, s32 count)
-{
-    std::string utf8;
-    if (!count)
-    {
-        return "";
-    }
-    s32 size_needed =
-        WideCharToMultiByte(CP_UTF8, 0, wide, count, nullptr, 0, NULL, NULL);
-    utf8.resize(size_needed);
-    if (!size_needed)
-    {
-        // This shouldn't happen
-        return "";
-    }
-    WideCharToMultiByte(CP_UTF8, 0, wide, count, &utf8[0], size_needed, NULL,
-                        NULL);
-    if (count < 0)
-        utf8.resize(utf8.size() - 1); // remove '\0'
     return utf8;
 }
 

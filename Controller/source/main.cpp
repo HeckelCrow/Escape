@@ -6,6 +6,7 @@
 #include "console.hpp"
 #include "serial_port.hpp"
 #include "server.hpp"
+#include "file_io.hpp"
 
 #define utf8(s) (const char*)u8##s
 
@@ -95,6 +96,117 @@ T
 Random(T max)
 {
     return Random((T)0, max);
+}
+
+struct Settings
+{
+    Settings()
+    {
+        for (auto& th : target_thresholds)
+            th = 10'000;
+    }
+
+    u16 target_thresholds[target_count] = {};
+};
+
+Settings settings;
+
+template<typename T>
+bool
+TryRead(StrPtr str, u64& i, T& value)
+{
+    auto [ptr, ec] =
+        std::from_chars(str.data() + i, str.data() + str.size(), value);
+    if (ec == std::errc())
+    {
+        i = ptr - str.data();
+        return true;
+    }
+    return false;
+}
+
+template<typename T>
+T
+Read(StrPtr str, u64& i, T default_value)
+{
+    T value = 0;
+    if (TryRead(str, i, value))
+    {
+        return value;
+    }
+    return default_value;
+}
+
+bool
+ReadAllSpaces(StrPtr str, u64& i)
+{
+    bool found_space = false;
+    while (i < str.size())
+    {
+        if (str[i] != ' ' && str[i] != '\t' && str[i] != '\r' && str[i] != '\n')
+        {
+            break;
+        }
+        found_space = true;
+        i++;
+    }
+    return found_space;
+}
+
+bool
+TryReadWord(StrPtr str, u64& i, StrPtr& word)
+{
+    u64 start = i;
+    while (i < str.size())
+    {
+        if (str[i] == ' ' || str[i] == '\t' || str[i] == '\r' || str[i] == '\n')
+        {
+            break;
+        }
+        i++;
+    }
+    u64 end = i;
+    word    = StrPtr(str.data() + start, end - start);
+    return word.size() != 0;
+}
+
+Settings
+LoadSettings(Path path)
+{
+    Settings settings;
+    Str      file = ReadUtf8File(path);
+    StrPtr   str  = file;
+    u64      i    = 0;
+
+    while (i < str.size())
+    {
+        ReadAllSpaces(str, i);
+        StrPtr name;
+        if (!TryReadWord(str, i, name))
+            break;
+
+        ReadAllSpaces(str, i);
+        if (name == "threshold")
+        {
+            u8 target;
+            if (TryRead(str, i, target))
+            {
+                if (target > 0 && target <= target_count)
+                {
+                    ReadAllSpaces(str, i);
+                    settings.target_thresholds[target] = Read(str, i, 10'000);
+                    Print("Threshold {} = {}\n", target,
+                          settings.target_thresholds[target]);
+                }
+                else
+                {
+                    PrintWarning("Settings contains invalid target {}\n",
+                                 target);
+                }
+            }
+        }
+    }
+    return settings;
 }
 
 void
@@ -623,6 +735,11 @@ struct Targets
                 Print("Loading {}\n", dir_entry.path().string());
                 orc_mads.push_back(LoadAudioFile(dir_entry.path()));
             }
+        }
+
+        for (u32 i = 0; i < target_count; i++)
+        {
+            command.thresholds[i] = settings.target_thresholds[i];
         }
     }
 
@@ -1354,41 +1471,13 @@ DrawTimer(Timer& timer)
     timer.last_measure = now;
 }
 
-template<typename T>
-bool
-Read(StrPtr str, u64& i, T& value)
-{
-    auto [ptr, ec] =
-        std::from_chars(str.data() + i, str.data() + str.size(), value);
-    if (ec == std::errc())
-    {
-        i = ptr - str.data();
-        return true;
-    }
-    return false;
-}
-
-bool
-ReadAllSpaces(StrPtr str, u64& i)
-{
-    bool found_space = false;
-    while (i < str.size())
-    {
-        if (str[i] != ' ' && str[i] != '\t' && str[i] != '\n')
-        {
-            break;
-        }
-        found_space = true;
-        i++;
-    }
-    return found_space;
-}
-
 int
 main()
 {
     SetConsoleOutputCP(CP_UTF8);
     Print("Hello.\n");
+
+    settings = LoadSettings("data/settings.txt");
 
     glfwSetErrorCallback(GlfwErrorCallback);
     if (!glfwInit())
@@ -1543,6 +1632,11 @@ main()
                                else
                                {
                                    PrintSuccess("No target sensor data\n");
+                                   for (auto& graph : target_graphs)
+                                   {
+                                       graph.clear();
+                                       graph.shrink_to_fit();
+                                   }
                                }
                                targets.command.send_sensor_data = show;
                            }));
@@ -1553,11 +1647,11 @@ main()
             u64 i = 0;
             ReadAllSpaces(args, i);
             u8 target;
-            if (!Read(args, i, target))
+            if (!TryRead(args, i, target))
                 return;
             ReadAllSpaces(args, i);
             u16 value;
-            if (!Read(args, i, value))
+            if (!TryRead(args, i, value))
                 return;
 
             if (target > 0 && target <= target_count)
@@ -1660,10 +1754,24 @@ main()
                 ImPlot::BeginPlot("Targets plot", {-1, -1});
                 for (u32 i = 0; i < target_count; i++)
                 {
-                    auto name = fmt::format("Target {}", i);
+                    if (target_graphs[i].size())
+                    {
+                        auto name = fmt::format("Target {}", i + 1);
 
-                    ImPlot::PlotLine(name.c_str(), target_graphs[i].data(),
-                                     target_graphs[i].size());
+                        ImPlot::PlotLine(name.c_str(), target_graphs[i].data(),
+                                         target_graphs[i].size());
+
+                        // ImPlot::TagY(targets.command.thresholds[i],
+                        //              ImPlot::GetLastItemColor(), "%d", i
+                        //              + 1);
+
+                        ImPlot::SetNextLineStyle(ImPlot::GetLastItemColor());
+
+                        name       = fmt::format("Threshold {}", i + 1);
+                        f32 h_line = targets.command.thresholds[i];
+                        ImPlot::PlotInfLines(name.c_str(), &h_line, 1,
+                                             ImPlotInfLinesFlags_Horizontal);
+                    }
                 }
                 ImPlot::EndPlot();
             }

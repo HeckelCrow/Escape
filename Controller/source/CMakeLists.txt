@@ -9,6 +9,8 @@ add_executable(${proj_name}
 	console.cpp
 	console.hpp
 	console_commands.hpp
+	file_io.cpp
+	file_io.hpp
 	imgui_config.hpp
 	main.cpp
 	print.hpp
@@ -17,7 +19,7 @@ add_executable(${proj_name}
 	serial_port.hpp
 	server.cpp
 	server.hpp
-)
+ )
 
 #Libs
 find_package(glfw3 CONFIG REQUIRED)
