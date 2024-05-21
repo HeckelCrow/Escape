@@ -35,6 +35,9 @@ target_link_libraries(${proj_name} PRIVATE fmt::fmt)
 find_package(imgui CONFIG REQUIRED)
 target_link_libraries(${proj_name} PRIVATE imgui::imgui)
 
+find_package(implot CONFIG REQUIRED)
+target_link_libraries(${proj_name} PRIVATE implot::implot)
+
 # find_package(harfbuzz CONFIG REQUIRED)
 # target_link_libraries(${proj_name} PRIVATE harfbuzz::harfbuzz)
 

@@ -1,5 +1,6 @@
 #pragma once
 #include "message_format.hpp"
+#include <vector>
 
 constexpr u8 target_count = 4;
 
@@ -23,7 +24,6 @@ struct TargetsCommand
     {
         Serialize(ask_for_ack, s);
         Serialize(enable, s);
-        Serialize(talk, s);
 
         auto target_count_msg = target_count;
         Serialize(target_count_msg, s);
@@ -36,13 +36,14 @@ struct TargetsCommand
             Serialize(hitpoints[i], s);
             Serialize(set_hitpoints[i], s);
         }
+        Serialize(send_sensor_data, s);
     }
 
     u8 ask_for_ack                 = 0;
     u8 enable                      = 0;
-    u8 talk                        = 0;
     s8 hitpoints[target_count]     = {0};
     s8 set_hitpoints[target_count] = {0};
+    u8 send_sensor_data            = 0;
 };
 
 struct TargetsStatus
@@ -59,7 +60,6 @@ struct TargetsStatus
     {
         Serialize(ask_for_ack, s);
         Serialize(enabled, s);
-        Serialize(talk, s);
 
         auto target_count_msg = target_count;
         Serialize(target_count_msg, s);
@@ -75,6 +75,35 @@ struct TargetsStatus
 
     u8 ask_for_ack             = 0;
     u8 enabled                 = 0;
-    u8 talk                    = 0;
     s8 hitpoints[target_count] = {0};
+    s8 send_sensor_data        = -1;
+};
+
+struct TargetsGraph
+{
+    TargetsGraph() {}
+
+    MessageHeader
+    getHeader()
+    {
+        return MessageHeader{MessageType::TargetsGraph};
+    }
+
+    void
+    serialize(Serializer& s)
+    {
+        for (u16 j = 0; j < target_count; j++)
+        {
+            Serialize(buffer_count[j], s);
+            auto* target_buffer = buffer[j];
+            for (u16 i = 0; i < buffer_count[j]; i++)
+            {
+                Serialize(target_buffer[i], s);
+            }
+        }
+    }
+
+    static constexpr u16 buffer_max_count                       = 64;
+    u16                  buffer[target_count][buffer_max_count] = {};
+    u16                  buffer_count[target_count]             = {};
 };

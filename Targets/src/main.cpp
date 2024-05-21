@@ -4,7 +4,7 @@
 #include "message_targets.hpp"
 
 #include <ADS1X15.h>
-// #include <FastLED.h>
+#include <FastLED.h>
 
 ClientId this_client_id = ClientId::Targets;
 
@@ -79,15 +79,16 @@ struct Adc
     u16  next_sample           = 0;
     u8   target_index          = 0;
     bool over_threshold        = false;
+    u8   curr_request          = 0;
 
     // u32 average = 0; // Average peak to peak x256
 };
 
 Adc adcs[] = {
-    Adc(0, 0x48 | 0b00), //
+    // Adc(0, 0x48 | 0b00), //
     Adc(0, 0x48 | 0b01), //
-    Adc(1, 0x48 | 0b00), //
-    Adc(1, 0x48 | 0b01)  //
+    // Adc(1, 0x48 | 0b10), //
+    // Adc(1, 0x48 | 0b01)  //
 };
 constexpr u8 adc_count = sizeof(adcs) / sizeof(adcs[0]);
 
@@ -96,16 +97,18 @@ bool          need_resend_status   = false;
 constexpr u32 resend_period        = 100;
 u32           time_last_state_sent = 0;
 
-// CRGB led_color;
+TargetsGraph graph;
+
+CRGB led_color;
 
 void
 setup()
 {
     Serial.begin(SERIAL_BAUD_RATE);
 
-    // FastLED.addLeds<NEOPIXEL, INBUILT_LED_OUT>(&led_color, 1);
-    // led_color = CRGB(255, 0, 0);
-    // FastLED.show();
+    FastLED.addLeds<NEOPIXEL, INBUILT_LED_OUT>(&led_color, 1);
+    led_color = CRGB(255, 0, 0);
+    FastLED.show();
 
     // FastLED.addLeds<NEOPIXEL, LEDS_OUT>(leds, led_count);
 
@@ -147,13 +150,34 @@ setup()
          *  16 	         ±0.256V
          */
         adc.ads.setGain(8);
-        adc.ads.setMode(1); // Single shot mode
+        adc.ads.setMode(1);     // Single shot mode
+        adc.ads.setDataRate(7); // 6: 475 SPS, 7: 860
 
         adc.ads.requestADC_Differential_0_1();
     }
 
     Serial.println(F("Start wifi"));
     StartWifi(true);
+}
+
+void
+SendTargetsGraphMessage()
+{
+    auto ser =
+        Serializer(SerializerMode::Serialize, {packet_buffer, udp_packet_size});
+
+    graph.getHeader().serialize(ser);
+    graph.serialize(ser);
+
+    udp.beginPacket(server_connection.address, server_connection.port);
+    BufferPtr buffer = {ser.full_buffer.start, ser.buffer.start};
+    udp.write(buffer.start, buffer.end - buffer.start);
+    udp.endPacket();
+
+    for (u8 i = 0; i < target_count; i++)
+    {
+        graph.buffer_count[i] = 0;
+    }
 }
 
 void
@@ -185,7 +209,15 @@ SetCommand(TargetsCommand cmd)
         }
     }
     status.enabled = cmd.enable;
-    status.talk    = cmd.talk;
+    if (status.send_sensor_data != cmd.send_sensor_data)
+    {
+        if (status.send_sensor_data && graph.buffer_count)
+        {
+            // We send what's in the buffer
+            SendTargetsGraphMessage();
+        }
+        status.send_sensor_data = cmd.send_sensor_data;
+    }
 }
 
 u32 hit_time     = 0;
@@ -207,14 +239,31 @@ NewSample(Adc& ch, s16 value)
             max = ch.samples[i];
     }
 
-    s32 peak_to_peak = (s32)max - (s32)min;
+    u16 peak_to_peak = (s32)max - (s32)min;
+
+    if (status.send_sensor_data)
+    {
+        auto& count = graph.buffer_count[ch.target_index];
+        if (count >= graph.buffer_max_count)
+        {
+            SendTargetsGraphMessage();
+        }
+        graph.buffer[ch.target_index][count] = peak_to_peak;
+        count++;
+    }
 
     // if (status.enabled & (1 << ch.target_index))
     // {
-    Serial.printf(">piezo%d:%d\n", ch.target_index, peak_to_peak);
-    Serial.printf(">piezo_value%d:%d\n", ch.target_index, value);
+    // Serial.printf(">piezo%d:%d\n", ch.target_index, peak_to_peak);
+    // Serial.printf(">piezo_value%d:%d\n", ch.target_index, value);
     // Serial.printf(">avg%d:%d\n", ch.target_index, ch.average / 256);
     // }
+
+    if (peak_to_peak > 1000)
+    {
+        led_color = CRGB(CHSV(beatsin16(4, 0, 255), 255, 255));
+        FastLED.show();
+    }
 
     // s16 threshold = 3 * ch.average / 256;
     // if (peak_to_peak > threshold)
@@ -362,8 +411,20 @@ loop()
         if (adc.ads.isReady())
         {
             s16 value = adc.ads.getValue();
-            NewSample(adc, value);
-            adc.ads.requestADC_Differential_0_1();
+            if (adc.curr_request == 0)
+            {
+                NewSample(adc, value);
+            }
+
+            adc.curr_request = (adc.curr_request == 0) ? 1 : 0;
+            if (adc.curr_request == 0)
+            {
+                adc.ads.requestADC_Differential_0_1();
+            }
+            else
+            {
+                adc.ads.requestADC_Differential_2_3();
+            }
         }
     }
 }

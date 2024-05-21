@@ -21,6 +21,7 @@
 #include <imgui_impl_glfw.h>
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
+#include <implot.h>
 
 #include <span>
 #include <chrono>
@@ -223,6 +224,9 @@ InitImgui(GLFWwindow* window)
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     // ImGui_ImplOpenGL3_Init("#version 330");
     ImGui_ImplOpenGL3_Init("#version 100");
+
+    ImPlot::CreateContext();
+    ImGui::GetStyle().AntiAliasedLines = true;
 }
 
 void
@@ -794,7 +798,6 @@ struct Targets
                 {
                     if (!IsPlaying(sound_playing[i]))
                     {
-                        command.talk = command.talk & ~(1 << i);
                         if (Random(1.f) < 1.f / sound_probability)
                         {
                             time_last_sound  = Clock::now();
@@ -803,8 +806,6 @@ struct Targets
                             SetGain(sound_playing[i], gain_orcs / 100.f);
                             SetPitch(sound_playing[i],
                                      Random(orc_pitch_min, orc_pitch_max));
-
-                            command.talk = command.talk | (1 << i);
                         }
                     }
                 }
@@ -816,7 +817,7 @@ struct Targets
         {
             need_update = true;
         }
-        if (command.talk != last_status.talk)
+        if (command.send_sensor_data != last_status.send_sensor_data)
         {
             need_update = true;
         }
@@ -1385,6 +1386,8 @@ main()
 
     Timer timer;
 
+    std::vector<u16> target_graphs[target_count];
+
     std::vector<AudioBuffer> musics;
     AudioPlaying             music_playing;
     AudioPlaying             prev_music_playing;
@@ -1495,6 +1498,20 @@ main()
             }
         }));
 
+    RegisterConsoleCommand("showtargetsensor", {"bool show"},
+                           std::function([&](u8 show) {
+                               show = (show != 0);
+                               if (show)
+                               {
+                                   PrintSuccess("Show target sensor data\n");
+                               }
+                               else
+                               {
+                                   PrintSuccess("No target sensor data\n");
+                               }
+                               targets.command.send_sensor_data = show;
+                           }));
+
     auto time_start = Clock::now();
     glfwShowWindow(window);
     while (!glfwWindowShouldClose(window))
@@ -1575,6 +1592,23 @@ main()
             }
         }
         ImGui::End();
+
+        if (targets.command.send_sensor_data)
+        {
+            if (ImGui::Begin("Targets graph"))
+            {
+                ImPlot::BeginPlot("Targets plot", {-1, -1});
+                for (u32 i = 0; i < target_count; i++)
+                {
+                    auto name = fmt::format("Target {}", i);
+
+                    ImPlot::PlotLine(name.c_str(), target_graphs[i].data(),
+                                     target_graphs[i].size());
+                }
+                ImPlot::EndPlot();
+            }
+            ImGui::End();
+        }
 
         while (true)
         {
@@ -1678,6 +1712,17 @@ main()
                     TargetsStatus msg;
                     msg.serialize(message.deserializer);
                     targets.receiveMessage(client, msg, show_messages_received);
+                }
+                break;
+                case MessageType::TargetsGraph: {
+                    TargetsGraph msg;
+                    msg.serialize(message.deserializer);
+                    for (u32 i = 0; i < target_count; i++)
+                    {
+                        target_graphs[i].insert_range(
+                            target_graphs[i].end(),
+                            std::span(msg.buffer[i], msg.buffer_count[i]));
+                    }
                 }
                 break;
 
