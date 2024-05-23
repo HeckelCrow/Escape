@@ -56,6 +56,10 @@ struct TargetsStatus
 {
     TargetsStatus()
     {
+        for (auto& h : hitpoints)
+        {
+            h = 1;
+        }
         for (auto& th : thresholds)
         {
             th = 10000;
@@ -90,7 +94,7 @@ struct TargetsStatus
     u8  enabled                  = 0;
     s8  hitpoints[target_count]  = {0};
     u16 thresholds[target_count] = {0};
-    s8  send_sensor_data         = -1;
+    u8  send_sensor_data         = 0;
 };
 
 struct TargetsGraph

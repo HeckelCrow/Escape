@@ -69,7 +69,7 @@ setup()
 
     // FastLED.addLeds<NEOPIXEL, LEDS_OUT>(leds, led_count);
 
-    delay(1000);
+    // delay(1000);
     Serial.println(F("Hello"));
 
     if (!i2c.setPins(I2C_SDA, I2C_SCL))
