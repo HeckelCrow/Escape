@@ -61,9 +61,8 @@ constexpr u8 I2C_SDA = 4;
 constexpr u8 I2C_SCL = 5;
 
 constexpr u8 INBUILT_LED_OUT = 48;
-// constexpr u8 LEDS_OUT        = 6;
 
-constexpr u8 SERVO_COMMAND[target_count] = {6, 7, 15, 16};
+constexpr u8 SERVO_COMMAND[target_count] = {6, 7, 15, 17};
 Button       buttons[target_count]       = {{9}, {10}, {11}, {12}};
 
 #endif
@@ -137,7 +136,8 @@ setup()
     Serial.begin(SERIAL_BAUD_RATE);
 
     FastLED.addLeds<NEOPIXEL, INBUILT_LED_OUT>(&led_color, 1);
-    led_color = CRGB(255, 0, 0);
+    // led_color = CRGB(255, 0, 0);
+    led_color = CRGB(0, 0, 0);
     FastLED.show();
 
     // FastLED.addLeds<NEOPIXEL, LEDS_OUT>(leds, led_count);
@@ -188,12 +188,15 @@ setup()
 
         adc.curr_request = 0;
         adc.ads.requestADC_Differential_0_1();
+    }
 
-        ledcSetup(j, 50 /*Hz*/, servo_pwm_bits);
-        ledcAttachPin(SERVO_COMMAND[j], j);
-        ledcWrite(j, servo_closed_pwm);
-        servos_closed[j]           = 1.f;
-        last_servo_command_time[j] = millis();
+    for (u8 i = 0; i < target_count; i++)
+    {
+        ledcSetup(i, 50 /*Hz*/, servo_pwm_bits);
+        ledcAttachPin(SERVO_COMMAND[i], i);
+        ledcWrite(i, servo_closed_pwm);
+        servos_closed[i]           = 1.f;
+        last_servo_command_time[i] = millis();
     }
 
     Serial.println(F("Start wifi"));
@@ -229,6 +232,12 @@ SetCommand(TargetsCommand cmd)
         if (cmd.set_hitpoints[i] >= 0)
         {
             status.hitpoints[i] = cmd.set_hitpoints[i];
+
+            if (status.hitpoints[i] <= 0)
+            {
+                Serial.printf("Target %hhd dead from command\n", i);
+                CloseServo(i, 0.f);
+            }
         }
         else if (cmd.hitpoints[i] != status.hitpoints[i])
         {
@@ -316,6 +325,8 @@ NewSample(Sensor& ch, s16 value)
 
                     if (status.hitpoints[ch.target_index] <= 0)
                     {
+                        Serial.printf("Target %hhd dead from hit\n",
+                                      ch.target_index);
                         CloseServo(ch.target_index, 0.f);
                     }
 
@@ -479,8 +490,15 @@ loop()
         {
             constexpr f32 time_to_close = 2000.f;
             f32 new_close = servos_closed[i] + update_time / time_to_close;
-            if (new_close > 1.f)
+            if (new_close > 0.9f)
+            {
                 new_close = 1.f;
+                if (status.hitpoints[i] <= 0)
+                {
+                    status.hitpoints[i] = 1;
+                    need_resend_status  = true;
+                }
+            }
             CloseServo(i, new_close);
         }
         else
@@ -494,7 +512,7 @@ loop()
             {
                 last_servo_command_time[i] = 0;
                 ledcDetachPin(SERVO_COMMAND[i]);
-                // Serial.printf("Stop servo %hhu\n", i);
+                Serial.printf("Stop servo %hhu\n", i);
             }
         }
     }
