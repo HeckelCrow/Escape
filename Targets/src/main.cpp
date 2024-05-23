@@ -8,6 +8,48 @@
 
 ClientId this_client_id = ClientId::Targets;
 
+struct Button
+{
+    enum class State
+    {
+        Pressed,
+        Clicked,
+        NotPressed,
+        Released,
+    };
+
+    Button();
+    Button(u8 pin_) : pin(pin_), debounce(millis())
+    {
+        pinMode(pin, INPUT_PULLUP);
+        prev_value = digitalRead(pin);
+    }
+
+    State
+    getState()
+    {
+        State state =
+            (prev_value == pressed_state) ? State::Pressed : State::NotPressed;
+
+        u8  value          = digitalRead(pin);
+        u32 state_duration = millis() - debounce;
+        if (value != prev_value && state_duration > 200)
+        {
+            prev_value = value;
+            debounce   = millis();
+
+            state = (value == pressed_state) ? State::Clicked : State::Released;
+        }
+
+        return state;
+    }
+
+    u8  pin;
+    u8  pressed_state = LOW;
+    u8  prev_value    = 0;
+    u32 debounce      = 0;
+};
+
 #if MINI_C3
 constexpr u8 I2C_SDA = 2;
 constexpr u8 I2C_SCL = 1;
@@ -20,9 +62,21 @@ constexpr u8 I2C_SCL = 5;
 
 constexpr u8 INBUILT_LED_OUT = 48;
 // constexpr u8 LEDS_OUT        = 6;
+
+constexpr u8 SERVO_COMMAND[target_count] = {6, 7, 15, 16};
+Button       buttons[target_count]       = {{9}, {10}, {11}, {12}};
+
 #endif
 
 TwoWire i2c = TwoWire(0);
+
+constexpr u16 servo_pwm_bits   = 12;
+constexpr u16 servo_closed_pwm = ((u16)1 << servo_pwm_bits) / 20.0 * 2;
+constexpr u16 servo_open_pwm   = ((u16)1 << servo_pwm_bits) / 20.0 * 1;
+
+u32           last_servo_command_time[target_count] = {};
+constexpr u32 servo_command_duration                = 1000;
+f32           servos_closed[target_count]           = {};
 
 struct Sensor
 {
@@ -57,6 +111,25 @@ u32           time_last_state_sent = 0;
 TargetsGraph graph;
 
 CRGB led_color;
+
+void
+CloseServo(u8 index, f32 closed)
+{
+    if (closed == servos_closed[index])
+        return;
+
+    if (!last_servo_command_time[index])
+    {
+        ledcAttachPin(SERVO_COMMAND[index], index);
+    }
+    u32 duty_cycle =
+        servo_open_pwm + closed * ((f32)servo_closed_pwm - servo_open_pwm);
+    ledcWrite(index, duty_cycle);
+    servos_closed[index]           = closed;
+    last_servo_command_time[index] = millis();
+
+    Serial.printf("Close[%hhu] %f\n", index, closed);
+}
 
 void
 setup()
@@ -115,6 +188,12 @@ setup()
 
         adc.curr_request = 0;
         adc.ads.requestADC_Differential_0_1();
+
+        ledcSetup(j, 50 /*Hz*/, servo_pwm_bits);
+        ledcAttachPin(SERVO_COMMAND[j], j);
+        ledcWrite(j, servo_closed_pwm);
+        servos_closed[j]           = 1.f;
+        last_servo_command_time[j] = millis();
     }
 
     Serial.println(F("Start wifi"));
@@ -235,10 +314,15 @@ NewSample(Sensor& ch, s16 value)
                     status.hitpoints[ch.target_index]--;
                     need_resend_status = true;
 
+                    if (status.hitpoints[ch.target_index] <= 0)
+                    {
+                        CloseServo(ch.target_index, 0.f);
+                    }
+
                     // hit_time = millis();
 
-                    led_color = CRGB(CHSV(beatsin16(4, 0, 255), 255, 255));
-                    FastLED.show();
+                    // led_color = CRGB(CHSV(beatsin16(4, 0, 255), 255, 255));
+                    // FastLED.show();
                 }
             }
         }
@@ -372,6 +456,45 @@ loop()
             else
             {
                 adc.ads.requestADC_Differential_2_3();
+            }
+        }
+    }
+
+    static u32 last_time   = millis();
+    u32        time        = millis();
+    u32        update_time = time - last_time;
+    last_time              = time;
+    for (u8 i = 0; i < target_count; i++)
+    {
+        auto button_state = buttons[i].getState();
+        if (servos_closed[i] == 1.f)
+        {
+            if (button_state == Button::State::Clicked)
+            {
+                // Opens when clicked
+                CloseServo(i, 0.f);
+            }
+        }
+        else if (button_state == Button::State::Pressed)
+        {
+            constexpr f32 time_to_close = 2000.f;
+            f32 new_close = servos_closed[i] + update_time / time_to_close;
+            if (new_close > 1.f)
+                new_close = 1.f;
+            CloseServo(i, new_close);
+        }
+        else
+        {
+            CloseServo(i, 0.f);
+        }
+
+        if (last_servo_command_time[i])
+        {
+            if (millis() > last_servo_command_time[i] + servo_command_duration)
+            {
+                last_servo_command_time[i] = 0;
+                ledcDetachPin(SERVO_COMMAND[i]);
+                // Serial.printf("Stop servo %hhu\n", i);
             }
         }
     }

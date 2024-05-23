@@ -45,7 +45,7 @@ struct TargetsCommand
     }
 
     u8  ask_for_ack                 = 0;
-    u8  enable                      = 0;
+    u8  enable                      = 0xFF;
     s8  hitpoints[target_count]     = {0};
     s8  set_hitpoints[target_count] = {0};
     u16 thresholds[target_count]    = {0};
@@ -91,7 +91,7 @@ struct TargetsStatus
     }
 
     u8  ask_for_ack              = 0;
-    u8  enabled                  = 0;
+    u8  enabled                  = 0xFF;
     s8  hitpoints[target_count]  = {0};
     u16 thresholds[target_count] = {0};
     u8  send_sensor_data         = 0;
