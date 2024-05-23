@@ -775,14 +775,15 @@ struct Targets
         for (u32 i = 0; i < target_count; i++)
         {
             if (command.hitpoints[i] > last_status.hitpoints[i]
-                && command.hitpoints[i] > 0)
+                && command.hitpoints[i] > 0 && gain_global > 0)
             {
                 if (last_status.hitpoints[i] <= 0)
                 {
                     StopAudio(sound_playing[i]);
                     u32 rand_index   = Random(orc_deaths.size() - 1);
                     sound_playing[i] = PlayAudio(orc_deaths[rand_index]);
-                    SetGain(sound_playing[i], gain_orcs_hurt / 100.f);
+                    SetGain(sound_playing[i],
+                            gain_orcs_hurt / 100.f * gain_global / 100.f);
                     SetPitch(sound_playing[i],
                              Random(orc_pitch_min, orc_pitch_max));
                 }
@@ -791,7 +792,8 @@ struct Targets
                     StopAudio(sound_playing[i]);
                     u32 rand_index   = Random(orc_deaths.size() - 1);
                     sound_playing[i] = PlayAudio(orc_deaths[rand_index]);
-                    SetGain(sound_playing[i], gain_orcs_hurt / 100.f);
+                    SetGain(sound_playing[i],
+                            gain_orcs_hurt / 100.f * gain_global / 100.f);
                     SetPitch(sound_playing[i],
                              Random(orc_pitch_min, orc_pitch_max));
                 }
@@ -839,8 +841,9 @@ struct Targets
                 ImGui::TextColored({0.9f, 0.1f, 0.1f, 1.f},
                                    utf8("(Déconnecté)"));
             }
+
             bool enable = (command.enable != 0);
-            if (ImGui::Checkbox(utf8("Activer"), &enable))
+            if (ImGui::Checkbox(utf8("Activer la detection"), &enable))
             {
                 if (enable)
                     command.enable = U8_MAX;
@@ -861,7 +864,8 @@ struct Targets
             }
             ImGui::Separator();
             ImGui::Text(utf8("Réglages"));
-            ImGui::SliderInt(utf8("Volume orques"), &gain_orcs, 0, 100);
+            ImGui::SliderInt(utf8("Volume général"), &gain_global, 0, 100);
+            ImGui::SliderInt(utf8("Volume bruits d'orque"), &gain_orcs, 0, 100);
             ImGui::SliderInt(utf8("Volume orques blessés/mort"),
                              &gain_orcs_hurt, 0, 100);
 
@@ -876,7 +880,7 @@ struct Targets
                 {
                     u32  rand_index = Random(orcs.size() - 1);
                     auto player     = PlayAudio(orcs[rand_index]);
-                    SetGain(player, gain_orcs / 100.f);
+                    SetGain(player, gain_orcs / 100.f * gain_global / 100.f);
                     SetPitch(player, Random(orc_pitch_min, orc_pitch_max));
                 }
 
@@ -884,7 +888,7 @@ struct Targets
                 {
                     u32  rand_index = Random(orc_hurts.size() - 1);
                     auto player     = PlayAudio(orc_hurts[rand_index]);
-                    SetGain(player, gain_orcs / 100.f);
+                    SetGain(player, gain_orcs / 100.f * gain_global / 100.f);
                     SetPitch(player, Random(orc_pitch_min, orc_pitch_max));
                 }
 
@@ -892,7 +896,7 @@ struct Targets
                 {
                     u32  rand_index = Random(orc_mads.size() - 1);
                     auto player     = PlayAudio(orc_mads[rand_index]);
-                    SetGain(player, gain_orcs / 100.f);
+                    SetGain(player, gain_orcs / 100.f * gain_global / 100.f);
                     SetPitch(player, Random(orc_pitch_min, orc_pitch_max));
                 }
 
@@ -900,7 +904,7 @@ struct Targets
                 {
                     u32  rand_index = Random(orc_deaths.size() - 1);
                     auto player     = PlayAudio(orc_deaths[rand_index]);
-                    SetGain(player, gain_orcs / 100.f);
+                    SetGain(player, gain_orcs / 100.f * gain_global / 100.f);
                     SetPitch(player, Random(orc_pitch_min, orc_pitch_max));
                 }
             }
@@ -912,7 +916,7 @@ struct Targets
             for (u32 i = 0; i < target_count; i++)
             {
                 bool enabled = command.enable & (1 << i);
-                if (command.hitpoints[i] > 0 && enabled)
+                if (command.hitpoints[i] > 0 && enabled && gain_global > 0)
                 {
                     if (!IsPlaying(sound_playing[i]))
                     {
@@ -921,7 +925,8 @@ struct Targets
                             time_last_sound  = Clock::now();
                             u32 rand_index   = Random(orcs.size() - 1);
                             sound_playing[i] = PlayAudio(orcs[rand_index]);
-                            SetGain(sound_playing[i], gain_orcs / 100.f);
+                            SetGain(sound_playing[i],
+                                    gain_orcs / 100.f * gain_global / 100.f);
                             SetPitch(sound_playing[i],
                                      Random(orc_pitch_min, orc_pitch_max));
                         }
@@ -985,6 +990,7 @@ struct Targets
     std::vector<AudioBuffer> orc_hurts;
     std::vector<AudioBuffer> orc_mads;
 
+    s32 gain_global    = 0;
     s32 gain_orcs      = 70;
     s32 gain_orcs_hurt = 100;
 
