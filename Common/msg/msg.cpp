@@ -27,7 +27,12 @@ StartWifi(bool access_point)
 
     if (access_point)
     {
-        bool channels_used[12] = {0}; // 1-13
+        Serial.println("Wifi mode: Access Point (AP)");
+        s32 channel_strengths[12] = {0}; // 1-13
+        for (auto& stren : channel_strengths)
+        {
+            stren = -1000;
+        }
 
         int n = WiFi.scanNetworks();
         Serial.println("Scan done");
@@ -43,16 +48,21 @@ StartWifi(bool access_point)
                            "| Encryption");
             for (int i = 0; i < n; ++i)
             {
-                // Print SSID and RSSI for each network found
+                String   ssid;
+                uint8_t  encryption_type;
+                int32_t  rssi;
+                uint8_t* bssid;
+                int32_t  ch;
+                WiFi.getNetworkInfo(i, ssid, encryption_type, rssi, bssid, ch);
                 Serial.printf("%2d", i + 1);
                 Serial.print(" | ");
-                Serial.printf("%-32.32s", WiFi.SSID(i).c_str());
+                Serial.printf("%-32.32s", ssid);
                 Serial.print(" | ");
-                Serial.printf("%4ld", WiFi.RSSI(i));
+                Serial.printf("%4ld", rssi);
                 Serial.print(" | ");
-                Serial.printf("%2ld", WiFi.channel(i));
+                Serial.printf("%2ld", ch);
                 Serial.print(" | ");
-                switch (WiFi.encryptionType(i))
+                switch (encryption_type)
                 {
                 case WIFI_AUTH_OPEN: Serial.print("open"); break;
                 case WIFI_AUTH_WEP: Serial.print("WEP"); break;
@@ -66,8 +76,10 @@ StartWifi(bool access_point)
                 default: Serial.print("unknown");
                 }
                 Serial.println();
-
-                channels_used[WiFi.channel(i) - 1] = true;
+                if (rssi > channel_strengths[ch - 1])
+                {
+                    channel_strengths[ch - 1] = rssi;
+                }
             }
         }
         Serial.println("");
@@ -76,13 +88,20 @@ StartWifi(bool access_point)
         WiFi.mode(WIFI_AP);
 
         s32 channel = 1;
-        for (u32 i = 1; i < 13; i++)
+
+        // channel 1, 6, and 11 are non-overlapping and preferred
+        if (channel_strengths[1 - 1] <= channel_strengths[6 - 1]
+            && channel_strengths[1 - 1] <= channel_strengths[11 - 1])
         {
-            if (!channels_used[i - 1])
-            {
-                channel = i;
-                break;
-            }
+            channel = 1;
+        }
+        else if (channel_strengths[6 - 1] <= channel_strengths[11 - 1])
+        {
+            channel = 6;
+        }
+        else
+        {
+            channel = 11;
         }
         Serial.printf("Channel %2ld\n", channel);
 
@@ -95,6 +114,7 @@ StartWifi(bool access_point)
     }
     else
     {
+        Serial.println("Wifi mode: Station (STA)");
         WiFi.begin(wifi_ssid, wifi_password);
         wifi_state = WifiState::WaitingForWifi;
     }
