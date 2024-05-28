@@ -76,6 +76,7 @@ constexpr u16 servo_open_pwm   = ((u16)1 << servo_pwm_bits) / 20.0 * 1;
 u32           last_servo_command_time[target_count] = {};
 constexpr u32 servo_command_duration                = 1000;
 f32           servos_closed[target_count]           = {};
+bool          servos_closing[target_count]          = {}; // Closing or opening
 
 struct Sensor
 {
@@ -196,6 +197,7 @@ setup()
         ledcAttachPin(SERVO_COMMAND[i], i);
         ledcWrite(i, servo_closed_pwm);
         servos_closed[i]           = 1.f;
+        servos_closing[i]          = true;
         last_servo_command_time[i] = millis();
     }
 
@@ -224,6 +226,13 @@ SendTargetsGraphMessage()
 }
 
 void
+Kill(u8 i)
+{
+    CloseServo(i, 0.f);
+    servos_closing[i] = false;
+}
+
+void
 SetCommand(TargetsCommand cmd)
 {
     need_resend_status = false;
@@ -236,7 +245,7 @@ SetCommand(TargetsCommand cmd)
             if (status.hitpoints[i] <= 0)
             {
                 Serial.printf("Target %hhd dead from command\n", i);
-                CloseServo(i, 0.f);
+                Kill(i);
             }
         }
         else if (cmd.hitpoints[i] != status.hitpoints[i])
@@ -327,7 +336,7 @@ NewSample(Sensor& ch, s16 value)
                     {
                         Serial.printf("Target %hhd dead from hit\n",
                                       ch.target_index);
-                        CloseServo(ch.target_index, 0.f);
+                        Kill(ch.target_index);
                     }
 
                     // hit_time = millis();
@@ -478,17 +487,14 @@ loop()
     for (u8 i = 0; i < target_count; i++)
     {
         auto button_state = buttons[i].getState();
-        if (servos_closed[i] == 1.f)
+
+        if (button_state == Button::State::Clicked)
         {
-            if (button_state == Button::State::Clicked)
-            {
-                // Opens when clicked
-                CloseServo(i, 0.f);
-            }
+            servos_closing[i] = !servos_closing[i];
         }
-        else if (button_state == Button::State::Pressed)
+        constexpr f32 time_to_close = 1500.f;
+        if (servos_closing[i] && servos_closed[i] < 1.f)
         {
-            constexpr f32 time_to_close = 2000.f;
             f32 new_close = servos_closed[i] + update_time / time_to_close;
             if (new_close > 0.9f)
             {
@@ -501,9 +507,14 @@ loop()
             }
             CloseServo(i, new_close);
         }
-        else
+        else if (!servos_closing[i] && servos_closed[i] > 0.f)
         {
-            CloseServo(i, 0.f);
+            f32 new_close = servos_closed[i] - update_time / time_to_close;
+            if (new_close < 0.1f)
+            {
+                new_close = 0.f;
+            }
+            CloseServo(i, new_close);
         }
 
         if (last_servo_command_time[i])
