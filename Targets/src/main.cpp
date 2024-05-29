@@ -133,6 +133,38 @@ CloseServo(u8 index, f32 closed)
 }
 
 void
+PrintSerialCommands()
+{
+    Serial.println(F(""));
+    Serial.println(F("Serial commands:"));
+    Serial.println(F("reset"));
+    Serial.println(F("scan"));
+    Serial.println(F(""));
+}
+
+void
+UpdateSerial()
+{
+    if (auto* str = ReadSerial())
+    {
+        if (strcmp(str, "reset") == 0)
+        {
+            Serial.println(F("Reset now."));
+            ESP.restart();
+        }
+        else if (strcmp(str, "scan") == 0)
+        {
+            WifiScan();
+        }
+        else
+        {
+            Serial.print(F("Unknown command: "));
+            Serial.println(str);
+        }
+    }
+}
+
+void
 setup()
 {
     Serial.begin(SERIAL_BAUD_RATE);
@@ -146,6 +178,8 @@ setup()
 
     // delay(1000);
     Serial.println(F("Hello"));
+
+    PrintSerialCommands();
 
     if (!i2c.setPins(I2C_SDA, I2C_SCL))
     {
@@ -454,23 +488,7 @@ loop()
         break;
         }
 
-        if (auto* str = ReadSerial())
-        {
-            if (strcmp(str, "reset") == 0)
-            {
-                Serial.println(F("Reset now."));
-                ESP.restart();
-            }
-            else if (strcmp(str, "scan") == 0)
-            {
-                WifiScan();
-            }
-            else
-            {
-                Serial.print(F("Unknown command: "));
-                Serial.println(str);
-            }
-        }
+        UpdateSerial();
     }
     for (u8 j = 0; j < adc_count; j++)
     {
