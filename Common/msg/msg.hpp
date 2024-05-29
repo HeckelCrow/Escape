@@ -31,3 +31,5 @@ extern WifiState wifi_state;
 
 void    StartWifi(bool access_point = false);
 Message ReceiveMessage();
+
+void WifiScan();

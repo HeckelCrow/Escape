@@ -33,7 +33,7 @@ StartWifi(bool access_point)
         {
             stren = -1000;
         }
-
+        Serial.println(F("Start scan"));
         int n = WiFi.scanNetworks();
         Serial.println("Scan done");
         if (n == 0)
@@ -264,4 +264,56 @@ ReceiveMessage()
     break;
     }
     return message;
+}
+
+void
+WifiScan()
+{
+    Serial.println(F("Start scan"));
+    int n = WiFi.scanNetworks();
+    Serial.println(F("Scan done"));
+    if (n == 0)
+    {
+        Serial.println("no networks found");
+    }
+    else
+    {
+        Serial.print(n);
+        Serial.println(" networks found\n");
+        Serial.println("Nr | SSID                             | RSSI | CH "
+                       "| Encryption");
+        for (int i = 0; i < n; ++i)
+        {
+            String   ssid;
+            uint8_t  encryption_type;
+            int32_t  rssi;
+            uint8_t* bssid;
+            int32_t  ch;
+            WiFi.getNetworkInfo(i, ssid, encryption_type, rssi, bssid, ch);
+            Serial.printf("%2d", i + 1);
+            Serial.print(" | ");
+            Serial.printf("%-32.32s", ssid);
+            Serial.print(" | ");
+            Serial.printf("%4ld", rssi);
+            Serial.print(" | ");
+            Serial.printf("%2ld", ch);
+            Serial.print(" | ");
+            switch (encryption_type)
+            {
+            case WIFI_AUTH_OPEN: Serial.print("open"); break;
+            case WIFI_AUTH_WEP: Serial.print("WEP"); break;
+            case WIFI_AUTH_WPA_PSK: Serial.print("WPA"); break;
+            case WIFI_AUTH_WPA2_PSK: Serial.print("WPA2"); break;
+            case WIFI_AUTH_WPA_WPA2_PSK: Serial.print("WPA+WPA2"); break;
+            case WIFI_AUTH_WPA2_ENTERPRISE: Serial.print("WPA2-EAP"); break;
+            case WIFI_AUTH_WPA3_PSK: Serial.print("WPA3"); break;
+            case WIFI_AUTH_WPA2_WPA3_PSK: Serial.print("WPA2+WPA3"); break;
+            case WIFI_AUTH_WAPI_PSK: Serial.print("WAPI"); break;
+            default: Serial.print("unknown");
+            }
+            Serial.println();
+        }
+    }
+    Serial.println("");
+    WiFi.scanDelete();
 }

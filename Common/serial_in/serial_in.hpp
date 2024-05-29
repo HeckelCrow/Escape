@@ -13,6 +13,12 @@ ReadSerial()
     while (Serial.available())
     {
         char c = (char)Serial.read();
+        Serial.print(c);
+
+        if (c == '\r')
+        {
+            c = '\0';
+        }
 
         if (c == '\n' || (serial_in_buffer_next + 1 >= serial_in_buffer_size))
         {
@@ -20,6 +26,7 @@ ReadSerial()
             serial_in_buffer_next                   = 0;
 
             out = serial_in_buffer;
+            Serial.print(F(">"));
             Serial.println(serial_in_buffer);
             break;
         }

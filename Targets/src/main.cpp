@@ -2,6 +2,7 @@
 #include "alias.hpp"
 #include "msg.hpp"
 #include "message_targets.hpp"
+#include "serial_in.hpp"
 
 #include <ADS1X15.h>
 #include <FastLED.h>
@@ -453,10 +454,22 @@ loop()
         break;
         }
 
-        while (Serial.available())
+        if (auto* str = ReadSerial())
         {
-            char c = (char)Serial.read();
-            Serial.print(c);
+            if (strcmp(str, "reset") == 0)
+            {
+                Serial.println(F("Reset now."));
+                ESP.restart();
+            }
+            else if (strcmp(str, "scan") == 0)
+            {
+                WifiScan();
+            }
+            else
+            {
+                Serial.print(F("Unknown command: "));
+                Serial.println(str);
+            }
         }
     }
     for (u8 j = 0; j < adc_count; j++)
