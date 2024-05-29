@@ -27,8 +27,11 @@ StartWifi(bool access_point)
 
     if (access_point)
     {
-        Serial.println("Wifi mode: Access Point (AP)");
-        s32 channel_strengths[12] = {0}; // 1-13
+        Serial.println(F("Wifi mode: Access Point (AP)"));
+        // channel 1, 6, and 11 are non-overlapping and preferred
+        s32 channel_strengths[3] = {0};
+        u8  channel_indices[3]   = {1, 6, 11};
+
         for (auto& stren : channel_strengths)
         {
             stren = -1000;
@@ -76,34 +79,44 @@ StartWifi(bool access_point)
                 default: Serial.print("unknown");
                 }
                 Serial.println();
-                if (rssi > channel_strengths[ch - 1])
+                u8 bucket = (ch + 1) / 5;
+                //      1 < < > > 6 < <  >  > 11
+                //      1 2 3 4 5 6 7 8  9 10 11
+                // (+1) 2 3 4 5 6 7 8 9 10 11 12
+                // (/5) 0 0 0 1 1 1 1 1  2  2  2
+                if (rssi > channel_strengths[bucket])
                 {
-                    channel_strengths[ch - 1] = rssi;
+                    channel_strengths[bucket] = rssi;
                 }
+                Serial.printf("channel bucket: %hhu (index=%hhu)\n",
+                              channel_indices[bucket], bucket);
             }
         }
-        Serial.println("");
+        Serial.println();
         WiFi.scanDelete();
 
         WiFi.mode(WIFI_AP);
 
-        s32 channel = 1;
+        Serial.println(F("Channels bucket strength"));
+        for (u8 i = 0; i < 3; i++)
+        {
+            Serial.printf("%hhu: %ddBm\n", channel_indices[i],
+                          channel_strengths[i]);
+        }
 
-        // channel 1, 6, and 11 are non-overlapping and preferred
-        if (channel_strengths[1 - 1] <= channel_strengths[6 - 1]
-            && channel_strengths[1 - 1] <= channel_strengths[11 - 1])
+        s32 channel      = 1;
+        s32 min_strength = channel_strengths[0];
+
+        for (u8 i = 1; i < 3; i++)
         {
-            channel = 1;
+            if (channel_strengths[i] < min_strength)
+            {
+                min_strength = channel_strengths[i];
+                channel      = channel_indices[i];
+            }
         }
-        else if (channel_strengths[6 - 1] <= channel_strengths[11 - 1])
-        {
-            channel = 6;
-        }
-        else
-        {
-            channel = 11;
-        }
-        Serial.printf("Channel %2ld\n", channel);
+        Serial.printf("Picked channel %2ld\n", channel);
+        Serial.println();
 
         constexpr s32 max_connection_count = 6;
         WiFi.softAP(wifi_ssid, wifi_password, channel, 0, max_connection_count);
@@ -114,7 +127,7 @@ StartWifi(bool access_point)
     }
     else
     {
-        Serial.println("Wifi mode: Station (STA)");
+        Serial.println(F("Wifi mode: Station (STA)"));
         WiFi.begin(wifi_ssid, wifi_password);
         wifi_state = WifiState::WaitingForWifi;
     }
