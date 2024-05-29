@@ -2,6 +2,7 @@
 #include "alias.hpp"
 #include "msg.hpp"
 #include "message_door_lock.hpp"
+#include "serial_in.hpp"
 
 ClientId this_client_id = ClientId::DoorLock;
 
@@ -17,9 +18,44 @@ constexpr u8 tune_dutycycle   = 190;
 constexpr u8 silent_dutycycle = 110;
 
 void
+PrintSerialCommands()
+{
+    Serial.println(F(""));
+    Serial.println(F("Serial commands:"));
+    Serial.println(F("reset"));
+    Serial.println(F("scan"));
+    Serial.println(F(""));
+}
+
+void
+UpdateSerial()
+{
+    if (auto* str = ReadSerial())
+    {
+        if (strcmp(str, "reset") == 0)
+        {
+            Serial.println(F("Reset now."));
+            ESP.restart();
+        }
+        else if (strcmp(str, "scan") == 0)
+        {
+            WifiScan();
+        }
+        else
+        {
+            Serial.print(F("Unknown command: "));
+            Serial.println(str);
+        }
+    }
+}
+
+void
 setup()
 {
     Serial.begin(SERIAL_BAUD_RATE);
+    Serial.println(F("Hello"));
+
+    PrintSerialCommands();
 
     // Should be initialized to 0:
     pinMode(MAGLOCK_DOOR, OUTPUT);
@@ -143,6 +179,8 @@ SetCommand(DoorLockCommand cmd)
 void
 loop()
 {
+    UpdateSerial();
+
     if (latchlock_force_open_time != 0)
     {
         u32 elapsed = millis() - latchlock_force_open_time;
