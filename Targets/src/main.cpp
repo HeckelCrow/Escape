@@ -66,6 +66,7 @@ constexpr u8 INBUILT_LED_OUT = 48;
 constexpr u8 SERVO_COMMAND[target_count] = {6, 7, 15, 17};
 Button       buttons[target_count]       = {{9}, {10}, {11}, {12}};
 
+constexpr u8 SWITCH        = 21;
 #endif
 
 TwoWire i2c = TwoWire(0);
@@ -236,8 +237,11 @@ setup()
         last_servo_command_time[i] = millis();
     }
 
+    pinMode(SWITCH, INPUT_PULLUP);
+    bool AP_mode = (digitalRead(SWITCH) == LOW);
+
     Serial.println(F("Start wifi"));
-    StartWifi(true);
+    StartWifi(AP_mode);
 }
 
 void
