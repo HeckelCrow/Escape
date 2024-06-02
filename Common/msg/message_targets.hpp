@@ -2,7 +2,8 @@
 #include "message_format.hpp"
 #include <vector>
 
-constexpr u8 target_count = 4;
+constexpr u8  target_count             = 4;
+constexpr u16 target_default_threshold = 1000;
 
 struct TargetsCommand
 {
@@ -14,7 +15,7 @@ struct TargetsCommand
         }
         for (auto& th : thresholds)
         {
-            th = 10000;
+            th = target_default_threshold;
         }
     }
 

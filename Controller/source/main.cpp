@@ -103,7 +103,7 @@ struct Settings
     Settings()
     {
         for (auto& th : target_thresholds)
-            th = 10'000;
+            th = target_default_threshold;
     }
 
     u16 target_thresholds[target_count] = {};
@@ -194,7 +194,8 @@ LoadSettings(Path path)
                 if (target > 0 && target <= target_count)
                 {
                     ReadAllSpaces(str, i);
-                    settings.target_thresholds[target] = Read(str, i, 10'000);
+                    settings.target_thresholds[target] =
+                        Read(str, i, target_default_threshold);
                     Print("Threshold {} = {}\n", target,
                           settings.target_thresholds[target]);
                 }
