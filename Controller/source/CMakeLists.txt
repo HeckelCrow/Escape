@@ -67,6 +67,8 @@ else()
 	target_compile_definitions(${proj_name} PRIVATE IS_DEBUG=0)
 endif()
 
+target_compile_definitions(${proj_name} PRIVATE CONTROLLER=1)
+
 target_compile_definitions(${proj_name} PRIVATE IMGUI_USER_CONFIG="imgui_config.hpp")
 target_compile_definitions(${proj_name} PRIVATE _WIN32_WINNT=_WIN32_WINNT_WIN7)
 

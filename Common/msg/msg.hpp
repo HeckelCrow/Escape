@@ -3,14 +3,6 @@
 #include <IPAddress.h>
 #include <WiFiUdp.h>
 
-struct Connection
-{
-    Connection() {}
-    Connection(IPAddress addr_in, u16 port_in) : address(addr_in), port(port_in)
-    {}
-    IPAddress address;
-    u16       port = 0;
-};
 #include "message_format.hpp"
 
 extern WiFiUDP    udp;

@@ -1,5 +1,6 @@
 #pragma once
 #include "alias.hpp"
+#include "connection.hpp"
 #include <type_traits>
 
 enum class ClientId : u8

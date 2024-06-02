@@ -1,22 +1,11 @@
 #pragma once
 #include "alias.hpp"
+#include "msg/message_format.hpp"
 
 #include <asio.hpp>
 #include <vector>
 
-using Endpoint  = asio::ip::udp::endpoint;
-using Socket    = asio::ip::udp::socket;
-using SocketPtr = std::shared_ptr<Socket>;
-
 constexpr u32 udp_packet_size = 1024;
-
-struct Connection
-{
-    Connection() {}
-    Endpoint  endpoint;
-    SocketPtr socket;
-};
-#include "msg/message_format.hpp"
 
 struct Server
 {
