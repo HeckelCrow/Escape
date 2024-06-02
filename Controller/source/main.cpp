@@ -586,9 +586,11 @@ struct DoorLock
     void
     update(Client& client)
     {
-        if (ImGui::Begin(utf8("Serrures magnétiques")))
+        // if (ImGui::Begin(utf8("Serrures magnétiques")))
+        if (ImGui::Begin(utf8("Porte Hobbit")))
         {
-            ImGui::Text(utf8("Serrures magnétiques"));
+            // ImGui::Text(utf8("Serrures magnétiques"));
+            ImGui::Text(utf8("Porte Hobbit"));
             ImGui::SameLine();
             if (client.connected)
             {
@@ -601,9 +603,7 @@ struct DoorLock
             }
             ImGui::Separator();
 
-            // ImGui::BeginDisabled(!client.connected);
-
-            ImGui::Text(utf8("Porte Hobbit"));
+            // ImGui::Text(utf8("Porte Hobbit"));
             DrawLock("hobbit", command.lock_door, last_status.lock_door);
             ImGui::Separator();
             if (false) // Disable key in tree for now
@@ -613,11 +613,12 @@ struct DoorLock
                               last_status.tree_open_duration);
                 ImGui::Separator();
             }
-
-            ImGui::Text(utf8("Mordor"));
-            DrawLock("mordor", command.lock_mordor, last_status.lock_mordor);
-
-            // ImGui::EndDisabled();
+            if (false) // Mordor door is controled by something else
+            {
+                ImGui::Text(utf8("Mordor"));
+                DrawLock("mordor", command.lock_mordor,
+                         last_status.lock_mordor);
+            }
         }
         ImGui::End();
 
