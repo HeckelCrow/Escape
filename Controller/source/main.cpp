@@ -174,7 +174,7 @@ Settings
 LoadSettings(Path path)
 {
     Settings settings;
-    Str      file = ReadUtf8File(path);
+    Str      file = ReadBinaryFile(path);
     StrPtr   str  = file;
     u64      i    = 0;
 
@@ -194,10 +194,10 @@ LoadSettings(Path path)
                 if (target > 0 && target <= target_count)
                 {
                     ReadAllSpaces(str, i);
-                    settings.target_thresholds[target] =
+                    settings.target_thresholds[target - 1] =
                         Read(str, i, target_default_threshold);
                     Print("Threshold {} = {}\n", target,
-                          settings.target_thresholds[target]);
+                          settings.target_thresholds[target - 1]);
                 }
                 else
                 {
