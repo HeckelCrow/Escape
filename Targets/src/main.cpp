@@ -88,6 +88,7 @@ struct Sensor
     u16  next_sample           = 0;
     u8   target_index          = 0;
     bool over_threshold        = false;
+    u32  hit_time              = 0;
 };
 
 struct Adc
@@ -365,23 +366,29 @@ NewSample(Sensor& ch, s16 value)
             ch.over_threshold = true;
             if (status.enabled & (1 << ch.target_index))
             {
-                constexpr s8 hp_min = -10;
-                if (status.hitpoints[ch.target_index] > hp_min)
+                constexpr s8  hp_min       = -10;
+                constexpr u32 hit_cooldown = 1000;
+                auto          time         = millis();
+                if (ch.hit_time == 0 || time > ch.hit_time + hit_cooldown)
                 {
-                    status.hitpoints[ch.target_index]--;
-                    need_resend_status = true;
-
-                    if (status.hitpoints[ch.target_index] <= 0)
+                    ch.hit_time = time;
+                    if (status.hitpoints[ch.target_index] > hp_min)
                     {
-                        Serial.printf("Target %hhd dead from hit\n",
-                                      ch.target_index);
-                        Kill(ch.target_index);
+                        status.hitpoints[ch.target_index]--;
+                        need_resend_status = true;
+
+                        if (status.hitpoints[ch.target_index] <= 0)
+                        {
+                            Serial.printf("Target %hhd dead from hit\n",
+                                          ch.target_index);
+                            Kill(ch.target_index);
+                        }
+
+                        // hit_time = millis();
+
+                        // led_color = CRGB(CHSV(beatsin16(4, 0, 255), 255,
+                        // 255)); FastLED.show();
                     }
-
-                    // hit_time = millis();
-
-                    // led_color = CRGB(CHSV(beatsin16(4, 0, 255), 255, 255));
-                    // FastLED.show();
                 }
             }
         }
