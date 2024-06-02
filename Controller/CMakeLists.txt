@@ -23,6 +23,9 @@ install(
 	DIRECTORY data
 	DESTINATION ${CMAKE_INSTALL_PREFIX}/${proj_name})
 
+install(FILES "resources/EscapeGame.exe Console.lnk"
+        DESTINATION ${CMAKE_INSTALL_PREFIX}/${proj_name})
+
 # CMAKE_INSTALL_SYSTEM_RUNTIME_DESTINATION needs to be set again
 # I don't know why.
 set(CMAKE_INSTALL_SYSTEM_RUNTIME_DESTINATION 

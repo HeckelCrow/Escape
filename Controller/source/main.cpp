@@ -36,6 +36,10 @@
 #include "msg/message_ring_dispenser.hpp"
 #include "msg/wifi_config.hpp"
 
+#if IS_DEBUG == 0
+#    pragma comment(linker, "/SUBSYSTEM:windows /ENTRY:mainCRTStartup")
+#endif
+
 using Clock     = std::chrono::high_resolution_clock;
 using Timepoint = std::chrono::time_point<Clock>;
 using Duration  = std::chrono::microseconds;
@@ -1539,11 +1543,29 @@ DrawTimer(Timer& timer)
 }
 
 int
-main()
+main(int argc, char* argv[])
 {
+    bool alloc_console = false;
+    if (argc == 2)
+    {
+        if (strcmp(argv[1], "-console") == 0)
+        {
+            if (AllocConsole())
+            {
+                alloc_console = true;
+                FILE* fp;
+                freopen_s(&fp, "CONOUT$", "w", stdout);
+                freopen_s(&fp, "CONIN$", "r", stdin);
+                freopen_s(&fp, "CONOUT$", "w", stderr);
+            }
+        }
+    }
+    SCOPE_EXIT({
+        if (alloc_console)
+            FreeConsole();
+    })
     SetConsoleOutputCP(CP_UTF8);
     Print("Hello.\n");
-
     settings = LoadSettings("data/settings.txt");
 
     glfwSetErrorCallback(GlfwErrorCallback);
