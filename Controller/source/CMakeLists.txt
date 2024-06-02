@@ -19,6 +19,8 @@ add_executable(${proj_name}
 	serial_port.hpp
 	server.cpp
 	server.hpp
+	settings.cpp
+	settings.hpp
  )
 
 #Libs

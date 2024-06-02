@@ -6,7 +6,7 @@
 #include "console.hpp"
 #include "serial_port.hpp"
 #include "server.hpp"
-#include "file_io.hpp"
+#include "settings.hpp"
 
 #define utf8(s) (const char*)u8##s
 
@@ -100,118 +100,6 @@ T
 Random(T max)
 {
     return Random((T)0, max);
-}
-
-struct Settings
-{
-    Settings()
-    {
-        for (auto& th : target_thresholds)
-            th = target_default_threshold;
-    }
-
-    u16 target_thresholds[target_count] = {};
-};
-
-Settings settings;
-
-template<typename T>
-bool
-TryRead(StrPtr str, u64& i, T& value)
-{
-    auto [ptr, ec] =
-        std::from_chars(str.data() + i, str.data() + str.size(), value);
-    if (ec == std::errc())
-    {
-        i = ptr - str.data();
-        return true;
-    }
-    return false;
-}
-
-template<typename T>
-T
-Read(StrPtr str, u64& i, T default_value)
-{
-    T value = 0;
-    if (TryRead(str, i, value))
-    {
-        return value;
-    }
-    return default_value;
-}
-
-bool
-ReadAllSpaces(StrPtr str, u64& i)
-{
-    bool found_space = false;
-    while (i < str.size())
-    {
-        if (str[i] != ' ' && str[i] != '\t' && str[i] != '\r' && str[i] != '\n')
-        {
-            break;
-        }
-        found_space = true;
-        i++;
-    }
-    return found_space;
-}
-
-bool
-TryReadWord(StrPtr str, u64& i, StrPtr& word)
-{
-    u64 start = i;
-    while (i < str.size())
-    {
-        if (str[i] == ' ' || str[i] == '\t' || str[i] == '\r' || str[i] == '\n')
-        {
-            break;
-        }
-        i++;
-    }
-    u64 end = i;
-    word    = StrPtr(str.data() + start, end - start);
-    return word.size() != 0;
-}
-
-Settings
-LoadSettings(Path path)
-{
-    Settings settings;
-    Str      file = ReadBinaryFile(path);
-    StrPtr   str  = file;
-    u64      i    = 0;
-
-    while (i < str.size())
-    {
-        ReadAllSpaces(str, i);
-        StrPtr name;
-        if (!TryReadWord(str, i, name))
-            break;
-
-        ReadAllSpaces(str, i);
-        if (name == "threshold")
-        {
-            u8 target;
-            if (TryRead(str, i, target))
-            {
-                if (target > 0 && target <= target_count)
-                {
-                    ReadAllSpaces(str, i);
-                    settings.target_thresholds[target - 1] =
-                        Read(str, i, target_default_threshold);
-                    Print("Threshold {} = {}\n", target,
-                          settings.target_thresholds[target - 1]);
-                }
-                else
-                {
-                    PrintWarning("Settings contains invalid target {}\n",
-                                 target);
-                }
-            }
-        }
-    }
-    return settings;
 }
 
 void
