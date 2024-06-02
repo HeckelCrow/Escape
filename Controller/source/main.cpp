@@ -511,6 +511,10 @@ DrawLock(const char* name, LockState& cmd, const LockState status)
     {
         ImGui::TextColored(color, utf8("> Verrouillée"));
     }
+    else
+    {
+        ImGui::TextColored(color, utf8("> Erreur"));
+    }
 }
 
 void
@@ -864,6 +868,53 @@ struct Targets
                 }
             }
             ImGui::Separator();
+
+            ImGui::Text(utf8("Porte Mordor"));
+            if (SelectableButton(
+                    utf8("Ouvrir à la mort des orques"),
+                    command.door_state
+                        == TargetsDoorState::OpenWhenTargetsAreDead))
+            {
+                command.door_state = TargetsDoorState::OpenWhenTargetsAreDead;
+            }
+            ImGui::SameLine();
+            if (SelectableButton(utf8("Ouvrir"),
+                                 command.door_state == TargetsDoorState::Open))
+            {
+                command.door_state = TargetsDoorState::Open;
+            }
+            ImGui::SameLine();
+            if (SelectableButton(utf8("Fermer"),
+                                 command.door_state == TargetsDoorState::Close))
+            {
+                command.door_state = TargetsDoorState::Close;
+            }
+            Vec4f color = ImGui::GetStyle().Colors[ImGuiCol_Text];
+            if (last_status.door_state != command.door_state)
+            {
+                color = {0.9f, 0.45f, 0.1f, 1.f};
+            }
+
+            if (last_status.door_state
+                == TargetsDoorState::OpenWhenTargetsAreDead)
+            {
+                ImGui::TextColored(color,
+                                   utf8("> Ouvrir à la mort des orques"));
+            }
+            else if (last_status.door_state == TargetsDoorState::Open)
+            {
+                ImGui::TextColored(color, utf8("> Ouvrir"));
+            }
+            else if (last_status.door_state == TargetsDoorState::Close)
+            {
+                ImGui::TextColored(color, utf8("> Fermer"));
+            }
+            else
+            {
+                ImGui::TextColored(color, utf8("> Erreur"));
+            }
+            ImGui::Separator();
+
             ImGui::Text(utf8("Réglages"));
             ImGui::SliderInt(utf8("Volume général"), &gain_global, 0, 100);
             ImGui::SliderInt(utf8("Volume bruits d'orque"), &gain_orcs, 0, 100);
@@ -942,6 +993,10 @@ struct Targets
             need_update = true;
         }
         if (command.send_sensor_data != last_status.send_sensor_data)
+        {
+            need_update = true;
+        }
+        if (command.door_state != last_status.door_state)
         {
             need_update = true;
         }
@@ -1233,6 +1288,10 @@ struct RingDispenser
             else if (last_status.state == RingDispenserState::ForceDeactivate)
             {
                 ImGui::TextColored(color, utf8("> Annuler"));
+            }
+            else
+            {
+                ImGui::TextColored(color, utf8("> Erreur"));
             }
             ImGui::Separator();
 

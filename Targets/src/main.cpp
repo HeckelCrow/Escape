@@ -67,6 +67,7 @@ constexpr u8 SERVO_COMMAND[target_count] = {6, 7, 15, 17};
 Button       buttons[target_count]       = {{9}, {10}, {11}, {12}};
 
 constexpr u8 SWITCH        = 21;
+constexpr u8 DOOR_LOCK_OUT = 13;
 #endif
 
 TwoWire i2c = TwoWire(0);
@@ -169,6 +170,10 @@ UpdateSerial()
 void
 setup()
 {
+    // Should be initialized to 0:
+    pinMode(DOOR_LOCK_OUT, OUTPUT);
+    digitalWrite(DOOR_LOCK_OUT, 0);
+
     Serial.begin(SERIAL_BAUD_RATE);
 
     FastLED.addLeds<NEOPIXEL, INBUILT_LED_OUT>(&led_color, 1);
@@ -308,7 +313,8 @@ SetCommand(TargetsCommand cmd)
 
         status.thresholds[i] = cmd.thresholds[i];
     }
-    status.enabled = cmd.enable;
+    status.enabled    = cmd.enable;
+    status.door_state = cmd.door_state;
     if (status.send_sensor_data != cmd.send_sensor_data)
     {
         if (status.send_sensor_data && graph.buffer_count)
@@ -501,6 +507,7 @@ loop()
 
         UpdateSerial();
     }
+
     for (u8 j = 0; j < adc_count; j++)
     {
         auto& adc = adcs[j];
@@ -568,5 +575,25 @@ loop()
                 Serial.printf("Stop servo %hhu\n", i);
             }
         }
+    }
+
+    switch (status.door_state)
+    {
+    case TargetsDoorState::OpenWhenTargetsAreDead:
+    {
+        u8 to_write = 0; // Open
+        for (const auto& hp : status.hitpoints)
+        {
+            if (hp > 0)
+            {
+                to_write = 1; // Close
+                break;
+            }
+        }
+        digitalWrite(DOOR_LOCK_OUT, to_write);
+    }
+    break;
+    case TargetsDoorState::Open: digitalWrite(DOOR_LOCK_OUT, 0); break;
+    case TargetsDoorState::Close: digitalWrite(DOOR_LOCK_OUT, 1); break;
     }
 }
