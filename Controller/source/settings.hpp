@@ -2,6 +2,7 @@
 #include "alias.hpp"
 
 #include "msg/message_targets.hpp"
+#include <charconv>
 
 struct Settings
 {

@@ -13,6 +13,8 @@
 
 #define StaticArraySize(arr) (sizeof(arr) / sizeof((arr)[0]))
 
+#define utf8(s) (const char*)u8##s
+
 using u8  = uint8_t;
 using u16 = uint16_t;
 using u32 = uint32_t;

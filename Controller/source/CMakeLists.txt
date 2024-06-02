@@ -6,14 +6,20 @@ add_executable(${proj_name}
 	alias.hpp
 	audio.cpp
 	audio.hpp
+	client.hpp
 	console.cpp
 	console.hpp
 	console_commands.hpp
+	door_lock.cpp
+	door_lock.hpp
 	file_io.cpp
 	file_io.hpp
 	imgui_config.hpp
 	main.cpp
 	print.hpp
+	random.hpp
+	ring_dispenser.cpp
+	ring_dispenser.hpp
 	scope_exit.hpp
 	serial_port.cpp
 	serial_port.hpp
@@ -21,6 +27,11 @@ add_executable(${proj_name}
 	server.hpp
 	settings.cpp
 	settings.hpp
+	targets.hpp
+	targets.cpp
+	time.hpp
+	timer.cpp
+	timer.hpp
  )
 
 #Libs
