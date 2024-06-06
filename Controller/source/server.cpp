@@ -2,9 +2,6 @@
 #include "print.hpp"
 #include "file_io.hpp"
 
-// #define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
-// #define NOUSER
 #include <Windows.h>
 #include <iphlpapi.h>
 #pragma comment(lib, "IPHLPAPI.lib")
@@ -38,10 +35,8 @@ InitServer(Server& server)
 {
     ULONG family = AF_INET; // IPv4
     ULONG flags  = GAA_FLAG_SKIP_DNS_SERVER;
-    //| GAA_FLAG_INCLUDE_GATEWAYS
-    //              | GAA_FLAG_INCLUDE_ALL_INTERFACES;
-    ULONG size = 0;
-    auto  ret  = GetAdaptersAddresses(family, flags, nullptr, nullptr, &size);
+    ULONG size   = 0;
+    auto  ret    = GetAdaptersAddresses(family, flags, nullptr, nullptr, &size);
     if (ret != ERROR_BUFFER_OVERFLOW)
     {
         PrintError("GetAdaptersAddresses failed with error: {}\n", ret);
@@ -73,13 +68,6 @@ InitServer(Server& server)
               (address->IfType == IF_TYPE_ETHERNET_CSMACD) ? "Ethernet" :
                                                              "Other");
 
-        // Print("PhysicalAddress: ");
-        // for (u32 i = 0; i < address->PhysicalAddressLength; i++)
-        //{
-        //     Print("{}.", (u8)address->PhysicalAddress[i]);
-        // }
-        // Print("\n");
-
         if (address->IfType != IF_TYPE_IEEE80211
             && address->IfType != IF_TYPE_ETHERNET_CSMACD)
         {
@@ -94,7 +82,6 @@ InitServer(Server& server)
             auto addr = (sockaddr_in*)unicast->Address.lpSockaddr;
             auto asio_address =
                 asio::ip::address_v4(ntohl(addr->sin_addr.s_addr));
-            // u16 asio_port = ntohs(addr->sin_port);
             Print("{}\n", asio_address.to_string());
             endpoints.emplace_back(asio_address, 0);
         }
@@ -132,46 +119,14 @@ InitServer(Server& server)
         socket->bind(endpoint, error);
         if (error)
         {
-            // Print("Error: socket.bind: {}\n", error.message());
-            //  return false;
+            // We don't keep the socket when the bind fails.
             server.sockets.pop_back();
             continue;
         }
 
-        // server.socket.open(asio::ip::udp::v4(), error);
-        // if (error)
-        //{
-        //     PrintError("Error: socket.open: {}\n", AsioErrorToUtf8(error));
-        //     return false;
-        // }
-        // server.socket.bind(Endpoint(asio::ip::udp::v4(), 0), error);
-        // if (error)
-        //{
-        //     PrintError("Error: socket.bind: {}\n", AsioErrorToUtf8(error));
-        //     return false;
-        // }
-
         PrintSuccess("- {} port {}\n", endpoint.address().to_string(),
                      socket->local_endpoint().port());
     }
-
-    // PrintSuccess("port {}\n", server.socket.local_endpoint().port());
-
-    // Receive multicast packets:
-    // Endpoint listen_endpoint(asio::ip::make_address("0.0.0.0"),
-    //                          udp_broadcast_port);
-    // socket.open(listen_endpoint.protocol(), error);
-    // socket.set_option(asio::ip::udp::socket::reuse_address(true));
-    // socket.bind(listen_endpoint);
-
-    // socket.set_option(asio::ip::multicast::join_group(multicast_address));
-
-    // socket.open(asio::ip::udp::v4(), error);
-    // if (error)
-    //{
-    //     PrintError("Error: socket.open: {}\n", AsioErrorToUtf8(error));
-    //     return -1;
-    // }
 
     return true;
 }
