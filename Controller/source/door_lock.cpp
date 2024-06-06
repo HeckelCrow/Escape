@@ -115,6 +115,11 @@ DrawLatchLock(LatchLockState& cmd, const LatchLockState status,
 void
 DoorLock::update(Client& client)
 {
+    // DoorLock was supposed to control a lot of things but the plans have
+    // changed. I kept the code just in case. DoorLockCommand and DoorLockStatus
+    // send some useless data because of that. It was easier to hide the
+    // controls instead of really removing things.
+
     // if (ImGui::Begin(utf8("Serrures magnétiques")))
     if (ImGui::Begin(utf8("Porte Hobbit")))
     {

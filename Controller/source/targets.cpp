@@ -274,6 +274,8 @@ Targets::update(Client& client)
 
         if (ImGui::CollapsingHeader(utf8("Boutons de sons")))
         {
+            // TODO: Show a warning when we try to play a sound with gain_orcs
+            // or gain_global at 0.
             if (ImGui::Button(utf8("Orque!")))
             {
                 u32  rand_index = Random(orcs.size() - 1);

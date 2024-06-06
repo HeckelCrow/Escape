@@ -107,6 +107,7 @@ RingDispenser::update(Client& client)
         }
         ImGui::Separator();
 
+        // Draw all the rings
         const Vec2f p    = Vec2f(ImGui::GetCursorScreenPos()) + Vec2f(4.f, 4.f);
         Vec2f       pos  = p;
         Vec2f       size = Vec2f(36.f);
