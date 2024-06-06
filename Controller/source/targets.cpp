@@ -11,13 +11,16 @@ bool SelectableButton(const char* name, bool selected);
 
 Targets::Targets()
 {
+    // Loading all sound files
     for (auto const& dir_entry :
          std::filesystem::directory_iterator{"data/orc/"})
     {
         if (dir_entry.is_regular_file())
         {
             Print("Loading {}\n", dir_entry.path().string());
-            orcs.push_back(LoadAudioFile(dir_entry.path()));
+            auto audio_buff = LoadAudioFile(dir_entry.path());
+            if (audio_buff.al_buffer != 0)
+                orcs.push_back(audio_buff);
         }
     }
 
@@ -27,7 +30,9 @@ Targets::Targets()
         if (dir_entry.is_regular_file())
         {
             Print("Loading {}\n", dir_entry.path().string());
-            orc_deaths.push_back(LoadAudioFile(dir_entry.path()));
+            auto audio_buff = LoadAudioFile(dir_entry.path());
+            if (audio_buff.al_buffer != 0)
+                orc_deaths.push_back(audio_buff);
         }
     }
 
@@ -37,7 +42,9 @@ Targets::Targets()
         if (dir_entry.is_regular_file())
         {
             Print("Loading {}\n", dir_entry.path().string());
-            orc_hurts.push_back(LoadAudioFile(dir_entry.path()));
+            auto audio_buff = LoadAudioFile(dir_entry.path());
+            if (audio_buff.al_buffer != 0)
+                orc_hurts.push_back(audio_buff);
         }
     }
 
@@ -47,7 +54,9 @@ Targets::Targets()
         if (dir_entry.is_regular_file())
         {
             Print("Loading {}\n", dir_entry.path().string());
-            orc_mads.push_back(LoadAudioFile(dir_entry.path()));
+            auto audio_buff = LoadAudioFile(dir_entry.path());
+            if (audio_buff.al_buffer != 0)
+                orc_mads.push_back(audio_buff);
         }
     }
 
@@ -104,8 +113,8 @@ Targets::receiveMessage(Client& client, const TargetsStatus& msg, bool print)
             else
             {
                 StopAudio(sound_playing[i]);
-                u32 rand_index   = Random(orc_deaths.size() - 1);
-                sound_playing[i] = PlayAudio(orc_deaths[rand_index]);
+                u32 rand_index   = Random(orc_hurts.size() - 1);
+                sound_playing[i] = PlayAudio(orc_hurts[rand_index]);
                 SetGain(sound_playing[i],
                         gain_orcs_hurt / 100.f * gain_global / 100.f);
                 SetPitch(sound_playing[i],
@@ -144,9 +153,6 @@ DrawOrc(u32 index, bool enabled, s8 set_hp, s8 hp)
 {
     ImGui::PushID(index);
     SCOPE_EXIT({ ImGui::PopID(); });
-
-    // ImGui::BeginDisabled(!enabled);
-    // SCOPE_EXIT({ ImGui::EndDisabled(); });
 
     ImGui::Text(utf8("Orque %02lu"), index + 1);
     if (hp <= 0)

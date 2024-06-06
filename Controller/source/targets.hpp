@@ -27,7 +27,7 @@ struct Targets
 
     s32 gain_global    = 0;
     s32 gain_orcs      = 70;
-    s32 gain_orcs_hurt = 100;
+    s32 gain_orcs_hurt = 100; // For hurt and death sounds
 
     s32 min_time_between_sounds = 700;
     s32 sound_probability       = 200;

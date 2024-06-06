@@ -98,6 +98,7 @@ LoadAudioFile(const Path& path, bool streaming)
         {
             PrintError("Could not open audio in {}: {}\n", filename.c_str(),
                        sf_strerror(sndfile));
+            return {};
         }
 
         SCOPE_EXIT({ sf_close(sndfile); });
