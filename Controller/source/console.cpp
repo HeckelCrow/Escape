@@ -135,9 +135,7 @@ DrawConsole()
     }
 
     // Reserve enough left-over height for 1 separator + 1 input text
-    const float footer_height_to_reserve =
-        /* ImGui::GetStyle().ItemSpacing.y + */ ImGui::
-            GetFrameHeightWithSpacing();
+    const float footer_height_to_reserve = ImGui::GetFrameHeightWithSpacing();
     ImGui::BeginChild("ScrollingRegion", ImVec2(0, -footer_height_to_reserve));
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing,
                         ImVec2(4, 1)); // Tighten spacing
@@ -169,7 +167,6 @@ DrawConsole()
             }
             current_type = message.type;
         }
-        // ImGui::TextUnformatted(message.data());
         ImGui::TextWrapped(message.text.data());
     }
     if (current_type != ConsoleMessageType::Info)
