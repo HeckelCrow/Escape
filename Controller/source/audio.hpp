@@ -1,6 +1,9 @@
 #pragma once
 #include "alias.hpp"
 
+/*
+   AudioBuffer represents a sound file.
+*/
 struct AudioBuffer
 {
     AudioBuffer() {}
@@ -14,6 +17,9 @@ struct AudioBuffer
 AudioBuffer LoadAudioFile(const Path& path, bool streaming = false);
 void        DestroyAudioBuffer(AudioBuffer& buffer);
 
+/*
+   AudioPlaying is a handle to a sound being played.
+*/
 struct AudioPlaying
 {
     AudioPlaying() {}

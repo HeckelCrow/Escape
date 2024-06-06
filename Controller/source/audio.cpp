@@ -6,6 +6,9 @@
 #include <alext.h>
 #include <sndfile.h>
 
+/*
+   A Source plays one sound file at a time.
+*/
 struct Source
 {
     Source() {}
@@ -84,6 +87,10 @@ LoadFileToBuffer(SNDFILE* sndfile, SF_INFO sf_info, ALuint al_buffer,
 AudioBuffer
 LoadAudioFile(const Path& path, bool streaming)
 {
+    // TODO: Maybe this should return an AudioBuffer and a bool. Right now we
+    // can only test if al_buffer is not 0. We can't tell if the file is valid
+    // when we want to stream it, because we need a Source to start loading a
+    // file with streaming.
     AudioBuffer buffer;
     buffer.path      = path;
     buffer.streaming = streaming;
@@ -150,8 +157,6 @@ InitStream(const Path& path, Source& source)
 
     alGenBuffers(source.buffer_count, source.al_buffers);
 
-    // source.next_buffer = 0;
-
     for (u32 i = 0; i < source.buffer_count; i++)
     {
         auto al_buffer = source.al_buffers[i];
@@ -161,7 +166,6 @@ InitStream(const Path& path, Source& source)
             break;
         }
         alSourceQueueBuffers(source.al_source, 1, &al_buffer);
-        // source.next_buffer = (source.next_buffer + 1) % source.buffer_count;
     }
     alSourcePlay(source.al_source);
 
@@ -391,6 +395,8 @@ InitAudio(u32 source_count)
     auto enumeration = alcIsExtensionPresent(NULL, "ALC_ENUMERATION_EXT");
     if (enumeration)
     {
+        // We list the audio devices available. Right now we don't use it, we
+        // pick the default one.
         auto device_names = alcGetString(NULL, ALC_DEVICE_SPECIFIER);
         Print("Devices:\n");
 
@@ -425,6 +431,9 @@ InitAudio(u32 source_count)
         return false;
     }
 
+    // source_count is the maximum number of sound played at the same time. Some
+    // sounds may have long trailing silences that still take up a source until
+    // they end or are stopped.
     audio.sources.resize(source_count);
     for (auto& source : audio.sources)
     {
