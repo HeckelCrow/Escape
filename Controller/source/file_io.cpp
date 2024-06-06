@@ -16,29 +16,37 @@ ReadBinaryFile(const Path& path)
                                  NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     if (file != INVALID_HANDLE_VALUE)
     {
+        SCOPE_EXIT({ CloseHandle(file); });
         LARGE_INTEGER file_size;
 
         if (!GetFileSizeEx(file, &file_size))
         {
             PrintError("Error! Cannot get the file size!\n");
-            CloseHandle(file);
-            return data;
+            return {};
         }
-        assert(!file_size.HighPart); // Can't deal with files that big yet
-
+        if (file_size.HighPart) // Can't deal with files that big yet
+        {
+            PrintError("Error! file is too big ({} bytes)!\n",
+                       file_size.QuadPart);
+            return {};
+        }
         data.resize(file_size.LowPart);
 
         DWORD bytes_read;
         if (ReadFile(file, &data[0], file_size.LowPart, &bytes_read, NULL))
         {
-            assert(bytes_read == file_size.QuadPart);
+            if (bytes_read != file_size.QuadPart)
+            {
+                PrintWarning(
+                    "Couldn't read the whole file. Expected {} but read {}\n",
+                    file_size.QuadPart, bytes_read);
+            }
         }
         else
         {
             PrintError("ReadFile failed (error: {})\n", GetLastError());
             data.clear();
         }
-        CloseHandle(file);
     }
     return data;
 }
