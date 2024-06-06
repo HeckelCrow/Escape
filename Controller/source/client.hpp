@@ -9,6 +9,9 @@ constexpr Duration command_resend_period   = Milliseconds(100);
 
 struct Client
 {
+    /*
+       If a client times out, it is deconnected.
+    */
     bool
     timeout()
     {
@@ -16,6 +19,10 @@ struct Client
                 >= client_timeout_duration);
     }
 
+    /*
+       Heartbeat timeout means we haven't heard from a client for some time and
+       we should send a message to see if we get a response.
+    */
     bool
     heartbeatTimeout()
     {
@@ -28,6 +35,10 @@ struct Client
                || (now - time_last_message_received >= heartbeat_period);
     }
 
+    /*
+       When we don't get a response from a client, we should wait until
+       resendTimeout to try to send a message again.
+    */
     bool
     resendTimeout()
     {
