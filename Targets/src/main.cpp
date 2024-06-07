@@ -177,13 +177,9 @@ setup()
     Serial.begin(SERIAL_BAUD_RATE);
 
     FastLED.addLeds<NEOPIXEL, INBUILT_LED_OUT>(&led_color, 1);
-    // led_color = CRGB(255, 0, 0);
     led_color = CRGB(0, 0, 0);
     FastLED.show();
 
-    // FastLED.addLeds<NEOPIXEL, LEDS_OUT>(leds, led_count);
-
-    // delay(1000);
     Serial.println(F("Hello"));
 
     PrintSerialCommands();
@@ -326,9 +322,6 @@ SetCommand(TargetsCommand cmd)
     }
 }
 
-// u32 hit_time     = 0;
-// u32 hit_duration = 3000;
-
 void
 NewSample(Sensor& ch, s16 value)
 {
@@ -389,11 +382,6 @@ NewSample(Sensor& ch, s16 value)
                                           ch.target_index);
                             Kill(ch.target_index);
                         }
-
-                        // hit_time = millis();
-
-                        // led_color = CRGB(CHSV(beatsin16(4, 0, 255), 255,
-                        // 255)); FastLED.show();
                     }
                 }
             }
@@ -408,38 +396,6 @@ NewSample(Sensor& ch, s16 value)
 void
 loop()
 {
-    // constexpr u32 led_update_period = 1000 / 60;
-    // static u32    next_led_update   = millis();
-    // if (millis() > next_led_update)
-    // {
-    //     next_led_update += led_update_period;
-    //     // led_color = CRGB(CHSV(beatsin16(4, 0, 255), 255, 255));
-
-    //     accum88 bpm = 40 * 255;
-    //     if (hit_time != 0)
-    //     {
-    //         if (millis() < hit_time + hit_duration)
-    //         {
-    //             bpm = 200 * 255;
-    //         }
-    //         else
-    //         {
-    //             hit_time = 0;
-    //         }
-    //     }
-
-    //     if (hit_time == 0 && status.talk & (1 << 0))
-    //     {
-    //         led_color = CRGB(255, 0, 0);
-    //     }
-    //     else
-    //     {
-    //         led_color = CRGB(CHSV(beatsin88(bpm, 0, 20), 255, 255));
-    //     }
-
-    //     FastLED.show();
-    // }
-
     if (need_resend_status && wifi_state == WifiState::Connected)
     {
         if (millis() > time_last_state_sent + resend_period)
@@ -544,12 +500,15 @@ loop()
         constexpr f32 time_to_close = 1500.f;
         if (servos_closing[i] && servos_closed[i] < 1.f)
         {
+            // The latch is slowly closing
             f32 new_close = servos_closed[i] + update_time / time_to_close;
             if (new_close > 0.9f)
             {
                 new_close = 1.f;
                 if (status.hitpoints[i] <= 0)
                 {
+                    // We give the target 1hp otherwise the latch would open
+                    // again.
                     status.hitpoints[i] = 1;
                     need_resend_status  = true;
                 }
@@ -558,6 +517,7 @@ loop()
         }
         else if (!servos_closing[i] && servos_closed[i] > 0.f)
         {
+            // The latch is slowly opening
             f32 new_close = servos_closed[i] - update_time / time_to_close;
             if (new_close < 0.1f)
             {
@@ -570,6 +530,8 @@ loop()
         {
             if (millis() > last_servo_command_time[i] + servo_command_duration)
             {
+                // After some time we stop the command of the servo to reduce
+                // heating for nothing.
                 last_servo_command_time[i] = 0;
                 ledcDetachPin(SERVO_COMMAND[i]);
                 Serial.printf("Stop servo %hhu\n", i);
