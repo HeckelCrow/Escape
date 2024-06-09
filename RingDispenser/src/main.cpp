@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <FastLED.h>
 
 #include "alias.hpp"
 #include "serial_in.hpp"
@@ -7,12 +8,16 @@
 
 #if WROOM
 constexpr u8 SERVO_COMMAND = 15;
+constexpr u8 LED_OUT       = 12;
 
 constexpr u8 column_count              = 4;
 constexpr u8 row_count                 = 5;
 constexpr u8 PIN_COLUMNS[column_count] = {23, 22, 21, 19};
 constexpr u8 PIN_ROWS[row_count]       = {32, 33, 25, 26, 27};
 
+// rings_remap maps the values of (column * row_count + row) to the index of
+// each ring [0, 18]. These indices are used to set and reset bits inside a u32,
+// so 31 is used to note an invalid index.
 constexpr u8 rings_remap[column_count * row_count] = {
     14, 10, 7,  3, 0,  //
     15, 11, 8,  4, 1,  //
@@ -33,9 +38,20 @@ constexpr u16 pwm_bits        = 12;
 constexpr u16 servo_default   = ((u16)1 << pwm_bits) / 20 * 2.5;
 constexpr u16 servo_activated = ((u16)1 << pwm_bits) / 20 * 1;
 
+constexpr u32 led_count = 7;
+CRGB          leds[led_count];
+
 void
 setup()
 {
+    // Turn the LEDs off.
+    FastLED.addLeds<NEOPIXEL, LED_OUT>(leds, led_count);
+    for (auto& led : leds)
+    {
+        led = CRGB(0);
+    }
+    FastLED.show();
+
     Serial.begin(SERIAL_BAUD_RATE);
     Serial.print(F("Init\n"));
 
@@ -134,13 +150,45 @@ loop()
         constexpr u32 all_19_rings = (1 << 19) - 1;
         if (status.rings_detected == all_19_rings)
         {
+            constexpr u32 led_update_period = 1000 / 60;
+            static u32    next_led_update   = millis();
+
             if (ledcRead(0) != servo_activated)
+            {
                 ledcWrite(0, servo_activated);
+                // The rings just got detected, we need to reset next_led_update
+                // to ignore the time we didn't want to update the LEDs.
+                next_led_update = millis();
+            }
+
+            if (millis() > next_led_update)
+            {
+                next_led_update += led_update_period;
+
+                auto    offset     = beat8(/*bpm*/ 256 * 120);
+                auto    brightness = beatsin88(/*bpm*/ 256 * 33, 64, 255);
+                uint8_t i          = 0;
+                for (auto& led : leds)
+                {
+                    auto x = sin8(offset + i * 255 / (led_count + 1));
+                    led    = CRGB(CHSV(map8(x, 20, 40), 255, brightness));
+                    i++;
+                }
+                FastLED.show();
+            }
         }
         else
         {
             if (ledcRead(0) != servo_default)
+            {
                 ledcWrite(0, servo_default);
+
+                for (auto& led : leds)
+                {
+                    led = CRGB(0);
+                }
+                FastLED.show();
+            }
         }
     }
 
@@ -162,6 +210,7 @@ loop()
         udp.endPacket();
         time_last_state_sent = millis();
     }
+
     if (auto str = ReadSerial())
     {
         if (wifi_state == WifiState::Connected)
