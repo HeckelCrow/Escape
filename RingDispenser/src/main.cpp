@@ -19,10 +19,10 @@ constexpr u8 PIN_ROWS[row_count]       = {32, 33, 25, 26, 27};
 // each ring [0, 18]. These indices are used to set and reset bits inside a u32,
 // so 31 is used to note an invalid index.
 constexpr u8 rings_remap[column_count * row_count] = {
-    14, 10, 7,  3, 0,  //
-    15, 11, 8,  4, 1,  //
-    16, 12, 9,  5, 2,  //
-    17, 13, 18, 6, 31, //
+    18, 13, 9,  6, 2,  //
+    17, 12, 8,  5, 1,  //
+    16, 11, 7,  4, 0,  //
+    15, 10, 14, 3, 31, //
 };
 #endif
 
