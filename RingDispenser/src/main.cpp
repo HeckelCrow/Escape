@@ -42,6 +42,38 @@ constexpr u32 led_count = 7;
 CRGB          leds[led_count];
 
 void
+PrintSerialCommands()
+{
+    Serial.println(F(""));
+    Serial.println(F("Serial commands:"));
+    Serial.println(F("reset"));
+    Serial.println(F("scan"));
+    Serial.println(F(""));
+}
+
+void
+UpdateSerial()
+{
+    if (auto* str = ReadSerial())
+    {
+        if (strcmp(str, "reset") == 0)
+        {
+            Serial.println(F("Reset now."));
+            ESP.restart();
+        }
+        else if (strcmp(str, "scan") == 0)
+        {
+            WifiScan();
+        }
+        else
+        {
+            Serial.print(F("Unknown command: "));
+            Serial.println(str);
+        }
+    }
+}
+
+void
 setup()
 {
     // Turn the LEDs off.
@@ -54,6 +86,8 @@ setup()
 
     Serial.begin(SERIAL_BAUD_RATE);
     Serial.print(F("Init\n"));
+
+    PrintSerialCommands();
 
     ledcSetup(0, 50 /*Hz*/, pwm_bits);
     ledcAttachPin(SERVO_COMMAND, 0);
@@ -211,23 +245,5 @@ loop()
         time_last_state_sent = millis();
     }
 
-    if (auto str = ReadSerial())
-    {
-        if (wifi_state == WifiState::Connected)
-        {
-            auto ser = Serializer(SerializerMode::Serialize,
-                                  {packet_buffer, udp_packet_size});
-
-            LogMessage log = {};
-            log.severity   = LogSeverity::Info;
-            log.string     = {(u8*)str, strlen(str)};
-            log.getHeader().serialize(ser);
-            log.serialize(ser);
-
-            udp.beginPacket(server_connection.address, server_connection.port);
-            BufferPtr buffer = {ser.full_buffer.start, ser.buffer.start};
-            udp.write(buffer.start, buffer.end - buffer.start);
-            udp.endPacket();
-        }
-    }
+    UpdateSerial();
 }
