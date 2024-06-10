@@ -28,6 +28,20 @@ RingDispenser::receiveMessage(Client& client, const RingDispenserStatus& msg,
               (msg.state == RingDispenserState::DetectRings) ? "DetectRings" :
               (msg.state == RingDispenserState::ForceDeactivate) ? "Off" :
                                                                    "On");
+        Print("   Rings:\n");
+        Str rings_str;
+        for (u32 i = 0; i < 19; i++)
+        {
+            if (msg.rings_detected & (1 << i))
+            {
+                rings_str += "() ";
+            }
+            else
+            {
+                rings_str += "'' ";
+            }
+        }
+        Print("   {}\n", rings_str);
     }
     last_status            = msg;
     command.rings_detected = msg.rings_detected;
