@@ -2,8 +2,7 @@
 #include "message_format.hpp"
 #include <vector>
 
-constexpr u8  target_count             = 4;
-constexpr u16 target_default_threshold = 1000;
+constexpr u8 target_count = 4;
 
 enum class TargetsDoorState : u8
 {
@@ -19,10 +18,6 @@ struct TargetsCommand
         for (auto& h : set_hitpoints)
         {
             h = -1;
-        }
-        for (auto& th : thresholds)
-        {
-            th = target_default_threshold;
         }
     }
 
@@ -48,7 +43,6 @@ struct TargetsCommand
         {
             Serialize(hitpoints[i], s);
             Serialize(set_hitpoints[i], s);
-            Serialize(thresholds[i], s);
         }
         Serialize(send_sensor_data, s);
     }
@@ -58,7 +52,6 @@ struct TargetsCommand
     TargetsDoorState door_state  = TargetsDoorState::OpenWhenTargetsAreDead;
     s8               hitpoints[target_count]     = {0};
     s8               set_hitpoints[target_count] = {0};
-    u16              thresholds[target_count]    = {0};
     u8               send_sensor_data            = 0;
 };
 
@@ -69,10 +62,6 @@ struct TargetsStatus
         for (auto& h : hitpoints)
         {
             h = 1;
-        }
-        for (auto& th : thresholds)
-        {
-            th = 10000;
         }
     }
 
@@ -97,7 +86,6 @@ struct TargetsStatus
         for (u32 i = 0; i < target_count_msg; i++)
         {
             Serialize(hitpoints[i], s);
-            Serialize(thresholds[i], s);
         }
     }
 

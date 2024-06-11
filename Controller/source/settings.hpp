@@ -1,23 +1,23 @@
 #pragma once
 #include "alias.hpp"
 
-#include "msg/message_targets.hpp"
+// #include "msg/message_targets.hpp"
 #include <charconv>
 
-struct Settings
-{
-    Settings()
-    {
-        for (auto& th : target_thresholds)
-            th = target_default_threshold;
-    }
-
-    u16 target_thresholds[target_count] = {};
-};
-
-extern Settings settings;
-
-Settings LoadSettings(Path path);
+// struct Settings
+//{
+//     Settings()
+//     {
+//         for (auto& th : target_thresholds)
+//             th = target_default_threshold;
+//     }
+//
+//     u16 target_thresholds[target_count] = {};
+// };
+//
+// extern Settings settings;
+//
+// Settings LoadSettings(Path path);
 
 template<typename T>
 bool

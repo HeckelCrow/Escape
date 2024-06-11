@@ -1,11 +1,12 @@
 #include <Arduino.h>
+#include <LittleFS.h>
+#include <ADS1X15.h>
+#include <FastLED.h>
+
 #include "alias.hpp"
 #include "msg.hpp"
 #include "message_targets.hpp"
 #include "serial_in.hpp"
-
-#include <ADS1X15.h>
-#include <FastLED.h>
 
 ClientId this_client_id = ClientId::Targets;
 
@@ -90,6 +91,7 @@ struct Sensor
     u8   target_index          = 0;
     bool over_threshold        = false;
     u32  hit_time              = 0;
+    u16  threshold             = 2000;
 };
 
 struct Adc
@@ -142,7 +144,89 @@ PrintSerialCommands()
     Serial.println(F("Serial commands:"));
     Serial.println(F("reset"));
     Serial.println(F("scan"));
+    Serial.println(F("thresholds 2000 2000 2000 2000"));
     Serial.println(F(""));
+}
+
+void
+ReadSpaces(const char** str_ptr)
+{
+    auto* str = *str_ptr;
+    while (*str)
+    {
+        if (*str != ' ')
+        {
+            break;
+        }
+        str++;
+    }
+    *str_ptr = str;
+}
+
+const char*
+ReadWord(const char** str_ptr)
+{
+    auto* str = *str_ptr;
+    auto* ret = str;
+    while (*str)
+    {
+        if (*str == ' ')
+        {
+            break;
+        }
+        str++;
+    }
+    *str_ptr = str;
+    return ret;
+}
+
+u16
+ReadU16(const char** str_ptr)
+{
+    u16   value = 0;
+    auto* str   = *str_ptr;
+    while (*str)
+    {
+        if (*str == ' ')
+        {
+            break;
+        }
+        if (*str >= '0' && *str <= '9')
+        {
+            value *= 10;
+            value += *str - '0';
+        }
+        else
+        {
+            Serial.println(F("Error in ReadU16, not a number"));
+            break;
+        }
+
+        str++;
+    }
+    *str_ptr = str;
+    return value;
+}
+
+bool
+StringMatch(const char* str1, const char* end1, const char* str2)
+{
+    while (str1 < end1 && *str2)
+    {
+        if (*str1 != *str2)
+        {
+            return false;
+        }
+        str1++;
+        str2++;
+    }
+
+    if (str1 == end1 && *str2 == 0)
+    {
+        return true;
+    }
+
+    return false;
 }
 
 void
@@ -150,19 +234,76 @@ UpdateSerial()
 {
     if (auto* str = ReadSerial())
     {
-        if (strcmp(str, "reset") == 0)
+        auto* cmd = ReadWord(&str);
+
+        if (StringMatch(cmd, str, "reset"))
         {
             Serial.println(F("Reset now."));
             ESP.restart();
         }
-        else if (strcmp(str, "scan") == 0)
+        else if (StringMatch(cmd, str, "scan"))
         {
             WifiScan();
+        }
+        else if (StringMatch(cmd, str, "thresholds"))
+        {
+            for (u8 j = 0; j < adc_count; j++)
+            {
+                for (u8 i = 0; i < 2; i++)
+                {
+                    ReadSpaces(&str);
+                    auto& th = adcs[j].channels[i].threshold = ReadU16(&str);
+                }
+            }
+
+            Serial.println();
+            for (u8 j = 0; j < adc_count; j++)
+            {
+                for (u8 i = 0; i < 2; i++)
+                {
+                    Serial.printf("threshold %d = %d\n",
+                                  adcs[j].channels[i].target_index,
+                                  adcs[j].channels[i].threshold);
+                }
+            }
+            Serial.println();
+
+            if (LittleFS.begin())
+            {
+                File file = LittleFS.open("/thresholds", "w");
+                if (file)
+                {
+                    for (u8 j = 0; j < adc_count; j++)
+                    {
+                        for (u8 i = 0; i < 2; i++)
+                        {
+                            auto& th = adcs[j].channels[i].threshold;
+                            file.write((u8*)&th, sizeof(th));
+                        }
+                    }
+                    file.close();
+                }
+                else
+                {
+                    Serial.println(F("Can't create threshold file"));
+                }
+
+                LittleFS.end();
+            }
+            else
+            {
+                Serial.println(F("LittleFS Mount Failed"));
+            }
         }
         else
         {
             Serial.print(F("Unknown command: "));
-            Serial.println(str);
+            while (cmd != str)
+            {
+                Serial.print(*cmd);
+                cmd++;
+            }
+            Serial.println();
         }
     }
 }
@@ -228,6 +369,46 @@ setup()
         adc.curr_request = 0;
         adc.ads.requestADC_Differential_0_1();
     }
+
+    if (LittleFS.begin())
+    {
+        File file = LittleFS.open("/thresholds", "r");
+        if (file)
+        {
+            Serial.println(F("Loading threshold file"));
+            for (u8 j = 0; j < adc_count; j++)
+            {
+                for (u8 i = 0; i < 2; i++)
+                {
+                    auto& th = adcs[j].channels[i].threshold;
+                    file.read((u8*)&th, sizeof(th));
+                }
+            }
+            file.close();
+        }
+        else
+        {
+            Serial.println(F("Can't load threshold file"));
+        }
+
+        LittleFS.end();
+    }
+    else
+    {
+        Serial.println(F("LittleFS Mount Failed"));
+    }
+
+    Serial.println();
+    for (u8 j = 0; j < adc_count; j++)
+    {
+        for (u8 i = 0; i < 2; i++)
+        {
+            Serial.printf("threshold %d = %d\n",
+                          adcs[j].channels[i].target_index,
+                          adcs[j].channels[i].threshold);
+        }
+    }
+    Serial.println();
 
     for (u8 i = 0; i < target_count; i++)
     {
@@ -306,9 +487,18 @@ SetCommand(TargetsCommand cmd)
                 // Disabled
             }
         }
-
-        status.thresholds[i] = cmd.thresholds[i];
     }
+
+    for (u8 j = 0; j < adc_count; j++)
+    {
+        for (u8 i = 0; i < 2; i++)
+        {
+            const auto& th           = adcs[j].channels[i].threshold;
+            const auto& index        = adcs[j].channels[i].target_index;
+            status.thresholds[index] = th;
+        }
+    }
+
     status.enabled    = cmd.enable;
     status.door_state = cmd.door_state;
     if (status.send_sensor_data != cmd.send_sensor_data)
@@ -358,7 +548,7 @@ NewSample(Sensor& ch, s16 value)
     // Serial.printf(">avg%d:%d\n", ch.target_index, ch.average / 256);
     // }
 
-    if (peak_to_peak >= status.thresholds[ch.target_index])
+    if (peak_to_peak >= ch.threshold)
     {
         if (!ch.over_threshold)
         {
@@ -387,7 +577,7 @@ NewSample(Sensor& ch, s16 value)
             }
         }
     }
-    else if (peak_to_peak < status.thresholds[ch.target_index] / 2)
+    else if (peak_to_peak < ch.threshold / 2)
     {
         ch.over_threshold = false;
     }

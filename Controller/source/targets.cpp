@@ -2,7 +2,6 @@
 #include "print.hpp"
 #include "scope_exit.hpp"
 #include "random.hpp"
-#include "settings.hpp"
 #include "server.hpp"
 
 #include <imgui.h>
@@ -58,11 +57,6 @@ Targets::Targets()
             if (audio_buff.al_buffer != 0)
                 orc_mads.push_back(audio_buff);
         }
-    }
-
-    for (u32 i = 0; i < target_count; i++)
-    {
-        command.thresholds[i] = settings.target_thresholds[i];
     }
 }
 
@@ -351,10 +345,6 @@ Targets::update(Client& client)
     {
         if (command.set_hitpoints[i] >= 0
             && command.set_hitpoints[i] != last_status.hitpoints[i])
-        {
-            need_update = true;
-        }
-        if (command.thresholds[i] != last_status.thresholds[i])
         {
             need_update = true;
         }

@@ -1,4 +1,5 @@
 #include <Arduino.h>
+
 #include <FastLED.h>
 
 #include "alias.hpp"
@@ -85,7 +86,7 @@ setup()
     FastLED.show();
 
     Serial.begin(SERIAL_BAUD_RATE);
-    Serial.print(F("Init\n"));
+    Serial.print(F("Hello\n"));
 
     PrintSerialCommands();
 

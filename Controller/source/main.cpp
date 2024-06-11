@@ -289,7 +289,6 @@ main(int argc, char* argv[])
     })
     SetConsoleOutputCP(CP_UTF8);
     Print("Hello.\n");
-    settings = LoadSettings("data/settings.txt");
 
     glfwSetErrorCallback(GlfwErrorCallback);
     if (!glfwInit())
@@ -453,30 +452,31 @@ main(int argc, char* argv[])
                                targets.command.send_sensor_data = show;
                            }));
 
-    RegisterConsoleCommand(
-        "setthreshold", std::vector<StrPtr>{"u8 target", "u16 value"},
-        std::function([&](StrPtr args) {
-            u64 i = 0;
-            ReadAllSpaces(args, i);
-            u8 target;
-            if (!TryRead(args, i, target))
-                return;
-            ReadAllSpaces(args, i);
-            u16 value;
-            if (!TryRead(args, i, value))
-                return;
+    // RegisterConsoleCommand(
+    //     "setthreshold", std::vector<StrPtr>{"u8 target", "u16 value"},
+    //     std::function([&](StrPtr args) {
+    //         u64 i = 0;
+    //         ReadAllSpaces(args, i);
+    //         u8 target;
+    //         if (!TryRead(args, i, target))
+    //             return;
+    //         ReadAllSpaces(args, i);
+    //         u16 value;
+    //         if (!TryRead(args, i, value))
+    //             return;
 
-            if (target > 0 && target <= target_count)
-            {
-                PrintSuccess("Target {} threshold set to {}\n", target, value);
-                targets.command.thresholds[target - 1] = value;
-            }
-            else
-            {
-                PrintWarning("Target {} is invalid (min {}, max {})\n", target,
-                             1, target_count);
-            }
-        }));
+    //        if (target > 0 && target <= target_count)
+    //        {
+    //            PrintSuccess("Target {} threshold set to {}\n", target,
+    //            value); targets.command.thresholds[target - 1] = value;
+    //        }
+    //        else
+    //        {
+    //            PrintWarning("Target {} is invalid (min {}, max {})\n",
+    //            target,
+    //                         1, target_count);
+    //        }
+    //    }));
 
     auto time_start = Clock::now();
     glfwShowWindow(window);
@@ -580,7 +580,7 @@ main(int argc, char* argv[])
                         ImPlot::SetNextLineStyle(ImPlot::GetLastItemColor());
 
                         name       = fmt::format("Threshold {}", i + 1);
-                        f32 h_line = targets.command.thresholds[i];
+                        f32 h_line = targets.last_status.thresholds[i];
                         ImPlot::PlotInfLines(name.c_str(), &h_line, 1,
                                              ImPlotInfLinesFlags_Horizontal);
                     }
