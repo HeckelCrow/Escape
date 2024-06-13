@@ -304,6 +304,7 @@ UpdateSerial()
                 cmd++;
             }
             Serial.println();
+            PrintSerialCommands();
         }
     }
 }

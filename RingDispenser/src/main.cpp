@@ -70,6 +70,7 @@ UpdateSerial()
         {
             Serial.print(F("Unknown command: "));
             Serial.println(str);
+            PrintSerialCommands();
         }
     }
 }
