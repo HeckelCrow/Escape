@@ -183,21 +183,30 @@ loop()
     }
     if (status.state == RingDispenserState::DetectRings)
     {
-        constexpr u32 all_19_rings = (1 << 19) - 1;
+        constexpr u32 all_19_rings  = (1 << 19) - 1;
+        constexpr u32 open_duration = 1000;
+        static u32    time_close    = 0;
+        u32           time          = millis();
+
         if (status.rings_detected == all_19_rings)
         {
+            time_close = time + open_duration;
+        }
+
+        if (time < time_close)
+        {
             constexpr u32 led_update_period = 1000 / 60;
-            static u32    next_led_update   = millis();
+            static u32    next_led_update   = time;
 
             if (ledcRead(0) != servo_activated)
             {
                 ledcWrite(0, servo_activated);
                 // The rings just got detected, we need to reset next_led_update
                 // to ignore the time we didn't want to update the LEDs.
-                next_led_update = millis();
+                next_led_update = time;
             }
 
-            if (millis() > next_led_update)
+            if (time > next_led_update)
             {
                 next_led_update += led_update_period;
 
