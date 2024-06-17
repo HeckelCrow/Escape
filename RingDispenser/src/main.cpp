@@ -10,6 +10,8 @@
 #if WROOM
 constexpr u8 SERVO_COMMAND = 15;
 constexpr u8 LED_OUT       = 12;
+constexpr u8 VIBR          = 18;
+constexpr u8 VIBR_EN       = 5;
 
 constexpr u8 column_count              = 4;
 constexpr u8 row_count                 = 5;
@@ -36,8 +38,12 @@ constexpr u32 resend_period        = 100;
 u32           time_last_state_sent = 0;
 
 constexpr u16 pwm_bits        = 12;
+constexpr u8  servo_channel   = 0;
 constexpr u16 servo_default   = ((u16)1 << pwm_bits) / 20 * 2.5;
 constexpr u16 servo_activated = ((u16)1 << pwm_bits) / 20 * 1;
+
+constexpr u8 vibr_channel = 1;
+bool         vibr_on      = false;
 
 constexpr u32 led_count = 7;
 CRGB          leds[led_count];
@@ -91,9 +97,17 @@ setup()
 
     PrintSerialCommands();
 
-    ledcSetup(0, 50 /*Hz*/, pwm_bits);
-    ledcAttachPin(SERVO_COMMAND, 0);
-    ledcWrite(0, servo_default);
+    ledcSetup(servo_channel, 50 /*Hz*/, pwm_bits);
+    ledcAttachPin(SERVO_COMMAND, servo_channel);
+    ledcWrite(servo_channel, servo_default);
+
+    pinMode(VIBR, OUTPUT);
+    digitalWrite(VIBR, 0);
+    pinMode(VIBR_EN, INPUT_PULLUP);
+
+    // ledcSetup(vibr_channel, 1000 /*Hz*/, pwm_bits);
+    // ledcAttachPin(VIBR, vibr_channel);
+    // ledcWrite(vibr_channel, 0);
 
     for (auto col : PIN_COLUMNS)
     {
@@ -122,13 +136,13 @@ loop()
 
         if (cmd.state == RingDispenserState::ForceActivate)
         {
-            if (ledcRead(0) != servo_activated)
-                ledcWrite(0, servo_activated);
+            if (ledcRead(servo_channel) != servo_activated)
+                ledcWrite(servo_channel, servo_activated);
         }
         else if (cmd.state == RingDispenserState::ForceDeactivate)
         {
-            if (ledcRead(0) != servo_default)
-                ledcWrite(0, servo_default);
+            if (ledcRead(servo_channel) != servo_default)
+                ledcWrite(servo_channel, servo_default);
         }
         status.state   = cmd.state;
         last_cmd_rings = cmd.rings_detected;
@@ -198,9 +212,9 @@ loop()
             constexpr u32 led_update_period = 1000 / 60;
             static u32    next_led_update   = time;
 
-            if (ledcRead(0) != servo_activated)
+            if (ledcRead(servo_channel) != servo_activated)
             {
-                ledcWrite(0, servo_activated);
+                ledcWrite(servo_channel, servo_activated);
                 // The rings just got detected, we need to reset next_led_update
                 // to ignore the time we didn't want to update the LEDs.
                 next_led_update = time;
@@ -224,9 +238,9 @@ loop()
         }
         else
         {
-            if (ledcRead(0) != servo_default)
+            if (ledcRead(servo_channel) != servo_default)
             {
-                ledcWrite(0, servo_default);
+                ledcWrite(servo_channel, servo_default);
 
                 for (auto& led : leds)
                 {
@@ -254,6 +268,44 @@ loop()
         udp.write(buffer.start, buffer.end - buffer.start);
         udp.endPacket();
         time_last_state_sent = millis();
+    }
+
+    if (digitalRead(VIBR_EN))
+    {
+        static u32   time_next_vibr  = millis();
+        static u8    pulse_count     = 0;
+        constexpr u8 max_pulse_count = 5 * 2;
+        if (millis() > time_next_vibr)
+        {
+            vibr_on = !vibr_on;
+            if (vibr_on)
+            {
+                // ledcWrite(vibr_channel, ((u16)1 << pwm_bits) / 2);
+                digitalWrite(VIBR, 1);
+            }
+            else
+            {
+                // ledcWrite(vibr_channel, 0);
+                digitalWrite(VIBR, 0);
+            }
+
+            time_next_vibr += 200;
+
+            pulse_count++;
+            if (pulse_count >= max_pulse_count)
+            {
+                pulse_count = 0;
+                time_next_vibr += 10000;
+            }
+        }
+    }
+    else
+    {
+        if (vibr_on)
+        {
+            vibr_on = false;
+            digitalWrite(VIBR, 0);
+        }
     }
 
     UpdateSerial();
