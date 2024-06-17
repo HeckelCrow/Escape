@@ -21,7 +21,7 @@ inline void
 PrintError(const fmt::string_view str, Args&&... args)
 {
     const auto formated = fmt::vformat(str, fmt::make_format_args(args...));
-    fmt::print(stdout, fg(fmt::color::red), "{}", formated);
+    std::fputs(formated.data(), stdout);
     console.messages.push_back(
         {ConsoleMessageType::Error, std::move(formated)});
 }
@@ -31,7 +31,7 @@ inline void
 PrintWarning(const fmt::string_view str, Args&&... args)
 {
     const auto formated = fmt::vformat(str, fmt::make_format_args(args...));
-    fmt::print(stdout, fg(fmt::color::orange), "{}", formated);
+    std::fputs(formated.data(), stdout);
     console.messages.push_back(
         {ConsoleMessageType::Warning, std::move(formated)});
 }
@@ -41,7 +41,7 @@ inline void
 PrintSuccess(const fmt::string_view str, Args&&... args)
 {
     const auto formated = fmt::vformat(str, fmt::make_format_args(args...));
-    fmt::print(stdout, fg(fmt::color::lime_green), "{}", formated);
+    std::fputs(formated.data(), stdout);
     console.messages.push_back(
         {ConsoleMessageType::Success, std::move(formated)});
 }
