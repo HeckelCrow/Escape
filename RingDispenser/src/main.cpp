@@ -121,7 +121,7 @@ setup()
 
     for (auto col : PIN_COLUMNS)
     {
-        pinMode(col, OUTPUT);
+        pinMode(col, INPUT);
     }
     for (auto row : PIN_ROWS)
     {
@@ -275,6 +275,7 @@ loop()
     u8 ring_detected_count = 0;
     for (auto col : PIN_COLUMNS)
     {
+        pinMode(col, OUTPUT);
         digitalWrite(col, 1);
         for (auto row : PIN_ROWS)
         {
@@ -290,7 +291,9 @@ loop()
             }
             i++;
         }
+
         digitalWrite(col, 0);
+        pinMode(col, INPUT);
     }
     if (status.state == RingDispenserState::DetectRings)
     {
