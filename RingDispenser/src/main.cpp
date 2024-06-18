@@ -48,7 +48,9 @@ bool         vibr_on      = false;
 constexpr u32 led_count = 7;
 CRGB          leds[led_count];
 
-bool all_rings_detected = false;
+bool         all_rings_detected              = false;
+constexpr u8 ring_count                      = 19;
+u32          ring_detected_times[ring_count] = {};
 
 struct PulsePattern
 {
@@ -135,7 +137,7 @@ void
 UpdateLeds(bool on)
 {
     u32           time              = millis();
-    constexpr u32 led_update_period = 1000 / 60;
+    constexpr u32 led_update_period = 1000 / 30;
     static u32    next_led_update   = time;
     static bool   leds_on           = false;
 
@@ -204,7 +206,7 @@ MakePulsePattern(u8 ring_detected_count)
         pattern.pulse_count = 1;
         pattern.timeout     = 10000 - (ring_detected_count - 10) * 1000;
     }
-    else if (ring_detected_count < 19) // [16, 18]
+    else if (ring_detected_count < ring_count) // [16, 18]
     {
         pattern.pulse_count = ring_detected_count - 16 + 2;
         pattern.timeout     = 5000;
@@ -271,16 +273,43 @@ loop()
         status.state = RingDispenserState::DetectRings;
     }
 
-    u8 i                   = 0;
-    u8 ring_detected_count = 0;
+    u8  i                   = 0;
+    u8  ring_detected_count = 0;
+    u32 time                = millis();
     for (auto col : PIN_COLUMNS)
     {
+        u8           measures[row_count] = {};
+        constexpr u8 measure_count       = 10;
+
         pinMode(col, OUTPUT);
         digitalWrite(col, 1);
-        for (auto row : PIN_ROWS)
+
+        // We measure each row multiple times to reduce glitches
+        for (u8 k = 0; k < measure_count; k++)
+        {
+            for (u8 row_i = 0; row_i < row_count; row_i++)
+            {
+                if (digitalRead(PIN_ROWS[row_i]))
+                {
+                    measures[row_i]++;
+                }
+            }
+            // delay(1);
+        }
+
+        for (auto m : measures)
         {
             u8 bit = rings_remap[i];
-            if (digitalRead(row))
+
+            if (m == measure_count)
+            {
+                // When detected a ring stays detected for
+                // ring_detection_duration milliseconds
+                constexpr u32 ring_detection_duration = 50;
+                ring_detected_times[bit] = time + ring_detection_duration;
+            }
+
+            if (time <= ring_detected_times[bit])
             {
                 status.rings_detected |= (1ul << bit);
                 ring_detected_count++;
@@ -297,13 +326,30 @@ loop()
     }
     if (status.state == RingDispenserState::DetectRings)
     {
-        constexpr u32 open_duration = 1000;
-        static u32    time_close    = 0;
-        u32           time          = millis();
+        // The ring dispenser stays "open" at least open_min_duration
+        // milliseconds
+        constexpr u32 open_min_duration = 1000;
+        static u32    time_close        = 0;
+        // The rings need to be detected for ring_detected_duration milliseconds
+        // for the dispenser to open. This is to make sure the dispenser doesn't
+        // open because of a glitch on the row pins.
+        constexpr u32 ring_detected_duration = 300;
+        static u32    time_detected          = 0;
 
-        if (ring_detected_count == 19)
+        if (ring_detected_count == ring_count)
         {
-            time_close = time + open_duration;
+            if (time_detected == 0)
+            {
+                time_detected = time + ring_detected_duration;
+            }
+            else if (time >= time_detected)
+            {
+                time_close = time + open_min_duration;
+            }
+        }
+        else
+        {
+            time_detected = 0;
         }
 
         SetAllRingsDetected((time < time_close));
