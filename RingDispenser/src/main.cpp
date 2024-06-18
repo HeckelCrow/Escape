@@ -48,6 +48,16 @@ bool         vibr_on      = false;
 constexpr u32 led_count = 7;
 CRGB          leds[led_count];
 
+bool all_rings_detected = false;
+
+struct PulsePattern
+{
+    u8  pulse_count = 0;
+    u32 timeout     = 0;
+};
+
+PulsePattern pulse_pattern;
+
 void
 PrintSerialCommands()
 {
@@ -122,6 +132,93 @@ setup()
 }
 
 void
+UpdateLeds(bool on)
+{
+    u32           time              = millis();
+    constexpr u32 led_update_period = 1000 / 60;
+    static u32    next_led_update   = time;
+    static bool   leds_on           = false;
+
+    if (time > next_led_update)
+    {
+        next_led_update += led_update_period;
+
+        if (on)
+        {
+            auto    offset     = beat8(/*bpm*/ 256 * 120);
+            auto    brightness = beatsin88(/*bpm*/ 256 * 33, 64, 255);
+            uint8_t i          = 0;
+            for (auto& led : leds)
+            {
+                auto x = sin8(offset + i * 255 / (led_count + 1));
+                led    = CRGB(CHSV(map8(x, 20, 40), 255, brightness));
+                i++;
+            }
+            FastLED.show();
+        }
+        else if (leds_on)
+        {
+            for (auto& led : leds)
+            {
+                led = CRGB(0);
+            }
+            FastLED.show();
+        }
+        leds_on = on;
+    }
+}
+
+void
+SetAllRingsDetected(bool in)
+{
+    if (all_rings_detected == in)
+        return;
+
+    all_rings_detected = in;
+    if (all_rings_detected)
+    {
+        ledcWrite(servo_channel, servo_activated);
+    }
+    else
+    {
+        ledcWrite(servo_channel, servo_default);
+    }
+}
+
+PulsePattern
+MakePulsePattern(u8 ring_detected_count)
+{
+    PulsePattern pattern = {};
+    if (all_rings_detected)
+    {
+        pattern.pulse_count = 0;
+        pattern.timeout     = 200;
+    }
+    else if (ring_detected_count < 10) // [0, 9]
+    {
+        pattern.pulse_count = 0;
+        pattern.timeout     = 200;
+    }
+    else if (ring_detected_count < 16) // [10, 15]
+    {
+        pattern.pulse_count = 1;
+        pattern.timeout     = 10000 - (ring_detected_count - 10) * 1000;
+    }
+    else if (ring_detected_count < 19) // [16, 18]
+    {
+        pattern.pulse_count = ring_detected_count - 16 + 2;
+        pattern.timeout     = 5000;
+    }
+    else
+    {
+        // This shouldn't happen
+        pattern.pulse_count = 0;
+        pattern.timeout     = 200;
+    }
+    return pattern;
+}
+
+void
 loop()
 {
     Message message = ReceiveMessage();
@@ -136,13 +233,11 @@ loop()
 
         if (cmd.state == RingDispenserState::ForceActivate)
         {
-            if (ledcRead(servo_channel) != servo_activated)
-                ledcWrite(servo_channel, servo_activated);
+            SetAllRingsDetected(true);
         }
         else if (cmd.state == RingDispenserState::ForceDeactivate)
         {
-            if (ledcRead(servo_channel) != servo_default)
-                ledcWrite(servo_channel, servo_default);
+            SetAllRingsDetected(false);
         }
         status.state   = cmd.state;
         last_cmd_rings = cmd.rings_detected;
@@ -176,7 +271,8 @@ loop()
         status.state = RingDispenserState::DetectRings;
     }
 
-    u8 i = 0;
+    u8 i                   = 0;
+    u8 ring_detected_count = 0;
     for (auto col : PIN_COLUMNS)
     {
         digitalWrite(col, 1);
@@ -186,6 +282,7 @@ loop()
             if (digitalRead(row))
             {
                 status.rings_detected |= (1ul << bit);
+                ring_detected_count++;
             }
             else
             {
@@ -197,59 +294,18 @@ loop()
     }
     if (status.state == RingDispenserState::DetectRings)
     {
-        constexpr u32 all_19_rings  = (1 << 19) - 1;
         constexpr u32 open_duration = 1000;
         static u32    time_close    = 0;
         u32           time          = millis();
 
-        if (status.rings_detected == all_19_rings)
+        if (ring_detected_count == 19)
         {
             time_close = time + open_duration;
         }
 
-        if (time < time_close)
-        {
-            constexpr u32 led_update_period = 1000 / 60;
-            static u32    next_led_update   = time;
-
-            if (ledcRead(servo_channel) != servo_activated)
-            {
-                ledcWrite(servo_channel, servo_activated);
-                // The rings just got detected, we need to reset next_led_update
-                // to ignore the time we didn't want to update the LEDs.
-                next_led_update = time;
-            }
-
-            if (time > next_led_update)
-            {
-                next_led_update += led_update_period;
-
-                auto    offset     = beat8(/*bpm*/ 256 * 120);
-                auto    brightness = beatsin88(/*bpm*/ 256 * 33, 64, 255);
-                uint8_t i          = 0;
-                for (auto& led : leds)
-                {
-                    auto x = sin8(offset + i * 255 / (led_count + 1));
-                    led    = CRGB(CHSV(map8(x, 20, 40), 255, brightness));
-                    i++;
-                }
-                FastLED.show();
-            }
-        }
-        else
-        {
-            if (ledcRead(servo_channel) != servo_default)
-            {
-                ledcWrite(servo_channel, servo_default);
-
-                for (auto& led : leds)
-                {
-                    led = CRGB(0);
-                }
-                FastLED.show();
-            }
-        }
+        SetAllRingsDetected((time < time_close));
     }
+    UpdateLeds(all_rings_detected);
 
     if (last_cmd_rings != status.rings_detected
         && millis() > time_last_state_sent + resend_period
@@ -272,12 +328,37 @@ loop()
 
     if (digitalRead(VIBR_EN))
     {
-        static u32   time_next_vibr  = millis();
-        static u8    pulse_count     = 0;
-        constexpr u8 max_pulse_count = 5 * 2;
+        static u32    time_next_vibr = millis();
+        constexpr u32 pulse_duration = 200;
+
         if (millis() > time_next_vibr)
         {
-            vibr_on = !vibr_on;
+            if (vibr_on)
+            {
+                vibr_on = false;
+                time_next_vibr += pulse_duration;
+            }
+            else
+            {
+                if (pulse_pattern.pulse_count == 0
+                    && pulse_pattern.timeout == 0)
+                {
+                    pulse_pattern = MakePulsePattern(ring_detected_count);
+                }
+
+                if (pulse_pattern.pulse_count > 0)
+                {
+                    pulse_pattern.pulse_count--;
+                    vibr_on = true;
+                    time_next_vibr += pulse_duration;
+                }
+                else
+                {
+                    time_next_vibr += pulse_pattern.timeout;
+                    pulse_pattern.timeout = 0;
+                }
+            }
+
             if (vibr_on)
             {
                 // ledcWrite(vibr_channel, ((u16)1 << pwm_bits) / 2);
@@ -287,15 +368,6 @@ loop()
             {
                 // ledcWrite(vibr_channel, 0);
                 digitalWrite(VIBR, 0);
-            }
-
-            time_next_vibr += 200;
-
-            pulse_count++;
-            if (pulse_count >= max_pulse_count)
-            {
-                pulse_count = 0;
-                time_next_vibr += 10000;
             }
         }
     }
