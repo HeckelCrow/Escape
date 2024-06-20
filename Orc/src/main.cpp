@@ -24,6 +24,7 @@ constexpr u8 SD_CS   = 26;
 constexpr u8 I2C_SDA = 21;
 constexpr u8 I2C_SCL = 22;
 
+constexpr u8 LED_PIN = 5;
 #endif
 
 File32 sound_dir;
