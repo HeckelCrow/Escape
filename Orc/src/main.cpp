@@ -10,6 +10,8 @@
 
 #include "driver/i2s.h"
 
+// #define ENABLE_MAGNETIC_SENSOR 0
+
 #if LOLIN_D32
 
 constexpr u8 I2S_BCK  = 13;
@@ -32,9 +34,13 @@ f32    volume = 0.1;
 
 SdFat32  SD;
 SPIClass vSPI;
+bool     SD_card_initialized = false;
 
-constexpr u16 MPU6050_address        = 0x68;
+constexpr u16 MPU6050_address = 0x68;
+
+#ifdef ENABLE_MAGNETIC_SENSOR
 constexpr u16 LSM303DLHC_mag_address = 0x1E;
+#endif
 
 /*
    FS_SEL
@@ -467,13 +473,14 @@ struct Vec3
 };
 
 Vec3
-ReadAcceleration()
+ReadAcceleration(u8 addr_bit)
 {
    Vec3 a;
-   Wire.beginTransmission(MPU6050_address);
+   u8   addr = MPU6050_address | (addr_bit & 0b1);
+   Wire.beginTransmission(addr);
    Wire.write(0x3B);
    Wire.endTransmission();
-   Wire.requestFrom(MPU6050_address, (size_t)6);
+   Wire.requestFrom(addr, (size_t)6);
    s16 x = (Wire.read() << 8) | Wire.read();
    s16 y = (Wire.read() << 8) | Wire.read();
    s16 z = (Wire.read() << 8) | Wire.read();
@@ -488,13 +495,14 @@ ReadAcceleration()
 }
 
 Vec3
-ReadGyroscope()
+ReadGyroscope(u8 addr_bit)
 {
    Vec3 a;
-   Wire.beginTransmission(MPU6050_address);
+   u8   addr = MPU6050_address | (addr_bit & 0b1);
+   Wire.beginTransmission(addr);
    Wire.write(0x43);
    Wire.endTransmission();
-   Wire.requestFrom(MPU6050_address, (size_t)6);
+   Wire.requestFrom(addr, (size_t)6);
    s16 x = (Wire.read() << 8) | Wire.read();
    s16 y = (Wire.read() << 8) | Wire.read();
    s16 z = (Wire.read() << 8) | Wire.read();
@@ -508,6 +516,7 @@ ReadGyroscope()
    return a;
 }
 
+#ifdef ENABLE_MAGNETIC_SENSOR
 bool
 ReadMagneticField(Vec3& a)
 {
@@ -545,6 +554,18 @@ ReadMagneticField(Vec3& a)
    return true;
 }
 
+inline f32
+NormalizeMag(f32 value, f32 min, f32 max)
+{
+   f32 n = 0.f;
+   if (max - min > 0.4f)
+   {
+      n = (value - min) / (max - min) * 2.f - 1.f;
+   }
+   return n;
+}
+#endif // ENABLE_MAGNETIC_SENSOR
+
 Vec3
 Normalize(Vec3 v)
 {
@@ -555,17 +576,6 @@ Normalize(Vec3 v)
    v.z = v.z * len_inv;
 
    return v;
-}
-
-inline f32
-NormalizeMag(f32 value, f32 min, f32 max)
-{
-   f32 n = 0.f;
-   if (max - min > 0.4f)
-   {
-      n = (value - min) / (max - min) * 2.f - 1.f;
-   }
-   return n;
 }
 
 constexpr f32
@@ -608,24 +618,64 @@ Clamp(f32 x, f32 min, f32 max)
    return x;
 }
 
-Vec3           gyro_offset;
-KalmanEstimate pitch_estimate = {};
-KalmanEstimate roll_estimate  = {};
-KalmanEstimate yaw_estimate   = {};
+struct MPU6050
+{
+   Vec3           gyro_offset;
+   KalmanEstimate pitch_estimate = {};
+   KalmanEstimate roll_estimate  = {};
+   u32            prev_time      = 0;
+};
+
+MPU6050 mpu6050[2];
+
+#ifdef ENABLE_MAGNETIC_SENSOR
+KalmanEstimate yaw_estimate = {};
 Vec3           mag_min;
 Vec3           mag_max;
+#endif // ENABLE_MAGNETIC_SENSOR
 
 void
-setup()
+InitMPU6050(u8 addr_bit)
 {
-   Serial.begin(SERIAL_BAUD_RATE);
+   u8 addr = MPU6050_address | (addr_bit & 0b1);
 
-   Serial.print(F("Init\n"));
-   Serial.printf("ESP-idf Version %s\n", esp_get_idf_version());
-   Serial.print("ESP Arduino Version " STRINGIFY(ESP_ARDUINO_VERSION_MAJOR) //
-                "." STRINGIFY(ESP_ARDUINO_VERSION_MINOR)                    //
-                "." STRINGIFY(ESP_ARDUINO_VERSION_PATCH) "\n");             //
+   Wire.beginTransmission(addr);
+   Wire.write(0x6B);
+   Wire.write(0x00);
+   Wire.endTransmission();
 
+   // DLPF_CFG = 5: 10Hz low pass filter
+   Wire.beginTransmission(addr);
+   Wire.write(0x1A);
+   Wire.write(0x05);
+   Wire.endTransmission();
+
+   Wire.beginTransmission(addr);
+   Wire.write(0x1B);
+   Wire.write(FS_SEL << 3);
+   Wire.endTransmission();
+
+   Wire.beginTransmission(addr);
+   Wire.write(0x1C);
+   Wire.write(AFS_SEL << 3);
+   Wire.endTransmission();
+
+   mpu6050[addr].prev_time = micros();
+
+   for (u16 i = 0; i < 1000; i++)
+   {
+      auto gyro = ReadGyroscope(addr_bit);
+
+      auto& offset = mpu6050[addr].gyro_offset;
+      offset.x += gyro.x / 1000.f;
+      offset.y += gyro.y / 1000.f;
+      offset.z += gyro.z / 1000.f;
+   }
+}
+
+bool
+InitSDCard()
+{
    vSPI.begin(SD_CLK, SD_MISO, SD_MOSI, SD_CS);
    if (!SD.begin(SdSpiConfig(SD_CS, DEDICATED_SPI, SD_SCK_MHZ(20), &vSPI)))
    {
@@ -641,18 +691,18 @@ setup()
          Serial.println(int(SD.card()->errorCode()), HEX);
          Serial.print(F("errorData: "));
          Serial.println(int(SD.card()->errorData()));
-         return;
+         return false;
       }
 
       if (SD.vol()->fatType() == 0)
       {
          Serial.println(F("Can't find a valid FAT16/FAT32 partition."));
-         return;
+         return false;
       }
       else
       {
          Serial.println(F("Can't determine error type\n"));
-         return;
+         return false;
       }
    }
    Serial.println(F("Card successfully initialized."));
@@ -682,63 +732,63 @@ setup()
              F("Only cards larger than 2 GB should be formatted FAT32.\n"));
       }
    }
+   SD_card_initialized = true;
+   return true;
+}
 
-   // sound_dir = SD.open("/");
-   // PrintDirectory(sound_dir);
+void
+setup()
+{
+   Serial.begin(SERIAL_BAUD_RATE);
 
-   // i2s_config_t i2s_config = {
-   //     .mode                 = (i2s_mode_t)(I2S_MODE_MASTER |
-   //     I2S_MODE_TX), .sample_rate          = 44100, .bits_per_sample =
-   //     I2S_BITS_PER_SAMPLE_16BIT, .channel_format       =
-   //     I2S_CHANNEL_FMT_RIGHT_LEFT, // Stereo .communication_format =
-   //     I2S_COMM_FORMAT_STAND_I2S, .intr_alloc_flags     = 0, // Default
-   //     interrupt priority .dma_buf_count        = 8, .dma_buf_len = 256,
-   //     // TODO: pick buffer length, default 64 .use_apll             =
-   //     false, .tx_desc_auto_clear   = true, // Auto clear tx descriptor on
-   //     underflow .fixed_mclk           = 0};
+   Serial.print(F("Init\n"));
+   Serial.printf("ESP-idf Version %s\n", esp_get_idf_version());
+   Serial.print("ESP Arduino Version " STRINGIFY(ESP_ARDUINO_VERSION_MAJOR) //
+                "." STRINGIFY(ESP_ARDUINO_VERSION_MINOR)                    //
+                "." STRINGIFY(ESP_ARDUINO_VERSION_PATCH) "\n");             //
 
-   // i2s_driver_install(I2S_NUM_0, &i2s_config, 0, NULL);
+   if (InitSDCard())
+   {
+      sound_dir = SD.open("/");
+      PrintDirectory(sound_dir);
+   }
+   else
+   {
+      Serial.print(F("InitSDCard Failed\n"));
+   }
 
-   // i2s_pin_config_t pin_config = {.bck_io_num   = I2S_BCK,
-   //                                .ws_io_num    = I2S_LCK,
-   //                                .data_out_num = I2S_DOUT,
-   //                                .data_in_num  = I2S_PIN_NO_CHANGE};
-   // i2s_set_pin(I2S_NUM_0, &pin_config);
+   i2s_config_t i2s_config = {
+       .mode                 = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX),
+       .sample_rate          = 44100,
+       .bits_per_sample      = I2S_BITS_PER_SAMPLE_16BIT,
+       .channel_format       = I2S_CHANNEL_FMT_RIGHT_LEFT, // Stereo
+       .communication_format = I2S_COMM_FORMAT_STAND_I2S,
+       .intr_alloc_flags     = 0, // Default interrupt priority
+       .dma_buf_count        = 8,
+       .dma_buf_len          = 256, // TODO: pick buffer length, default 64
+       .use_apll             = false,
+       .tx_desc_auto_clear   = true, // Auto clear tx descriptor on underflow
+       .fixed_mclk           = 0};
 
-   // StartNextFile();
+   i2s_driver_install(I2S_NUM_0, &i2s_config, 0, NULL);
+
+   i2s_pin_config_t pin_config = {.bck_io_num   = I2S_BCK,
+                                  .ws_io_num    = I2S_LCK,
+                                  .data_out_num = I2S_DOUT,
+                                  .data_in_num  = I2S_PIN_NO_CHANGE};
+   i2s_set_pin(I2S_NUM_0, &pin_config);
+
+   if (SD_card_initialized)
+      StartNextFile();
 
    Wire.begin(I2C_SDA, I2C_SCL);
 
-   Wire.beginTransmission(MPU6050_address);
-   Wire.write(0x6B);
-   Wire.write(0x00);
-   Wire.endTransmission();
-
-   // DLPF_CFG = 5: 10Hz low pass filter
-   Wire.beginTransmission(MPU6050_address);
-   Wire.write(0x1A);
-   Wire.write(0x05);
-   Wire.endTransmission();
-
-   Wire.beginTransmission(MPU6050_address);
-   Wire.write(0x1B);
-   Wire.write(FS_SEL << 3);
-   Wire.endTransmission();
-
-   Wire.beginTransmission(MPU6050_address);
-   Wire.write(0x1C);
-   Wire.write(AFS_SEL << 3);
-   Wire.endTransmission();
-
-   for (u16 i = 0; i < 1000; i++)
+   for (u8 addr = 0; addr < 2; addr++)
    {
-      auto gyro = ReadGyroscope();
-
-      gyro_offset.x += gyro.x / 1000.f;
-      gyro_offset.y += gyro.y / 1000.f;
-      gyro_offset.z += gyro.z / 1000.f;
+      InitMPU6050(addr);
    }
 
+#ifdef ENABLE_MAGNETIC_SENSOR
    u8 data_rate = 0b100; // 15Hz
    Wire.beginTransmission(LSM303DLHC_mag_address);
    Wire.write(0x00); // CRA_REG_M
@@ -761,6 +811,7 @@ setup()
    while (!ReadMagneticField(mag_min))
       ;
    mag_max = mag_min;
+#endif // ENABLE_MAGNETIC_SENSOR
 }
 
 inline Vec3
@@ -782,47 +833,53 @@ Dot(const Vec3& a, const Vec3& b)
 void
 loop()
 {
-   // if (!LoadSamples(wave_file))
-   // {
-   //    StartNextFile();
-   // }
-   auto accel = ReadAcceleration();
-
-   f32 pitch = -atan(accel.x / sqrt(accel.y * accel.y + accel.z * accel.z));
-   f32 roll  = atan(accel.y / sqrt(accel.x * accel.x + accel.z * accel.z));
-
-   auto gyro = ReadGyroscope();
-
-   gyro.x -= gyro_offset.x;
-   gyro.y -= gyro_offset.y;
-   gyro.z -= gyro_offset.z;
-
+   if (SD_card_initialized && !LoadSamples(wave_file))
    {
-      static auto prev_time = micros();
-      auto        time      = micros();
-      f32         dt        = (f32)(time - prev_time) / 1000000.f;
-      prev_time             = time;
-      KalmanFilterStep(dt, pitch, gyro.y, pitch_estimate);
-      KalmanFilterStep(dt, roll, gyro.x, roll_estimate);
+      StartNextFile();
    }
 
-   // Serial.printf(">accelx:%d\n", accel.x);
-   // Serial.printf(">accely:%d\n", accel.y);
-   // Serial.printf(">accelz:%d\n", accel.z);
+   for (u8 addr = 0; addr < 2; addr++)
+   {
+      auto& mpu   = mpu6050[addr];
+      auto  accel = ReadAcceleration(addr);
 
-   // Serial.printf(">gyrox:%d\n", gyro.x);
-   // Serial.printf(">gyroy:%d\n", gyro.y);
-   // Serial.printf(">gyroz:%d\n", gyro.z);
+      f32 pitch = -atan(accel.x / sqrt(accel.y * accel.y + accel.z * accel.z));
+      f32 roll  = atan(accel.y / sqrt(accel.x * accel.x + accel.z * accel.z));
 
-   Serial.printf(">pitch:%f\n", pitch * (180.f / PI));
-   Serial.printf(">roll:%f\n", roll * (180.f / PI));
+      auto gyro = ReadGyroscope(addr);
+      gyro.x -= mpu.gyro_offset.x;
+      gyro.y -= mpu.gyro_offset.y;
+      gyro.z -= mpu.gyro_offset.z;
 
-   Serial.printf(">pitch_estimate:%f\n", pitch_estimate.value * (180.f / PI));
-   Serial.printf(">roll_estimate:%f\n", roll_estimate.value * (180.f / PI));
+      {
+         auto time     = micros();
+         f32  dt       = (f32)(time - mpu.prev_time) / 1000000.f;
+         mpu.prev_time = time;
+         KalmanFilterStep(dt, pitch, gyro.y, mpu.pitch_estimate);
+         KalmanFilterStep(dt, roll, gyro.x, mpu.roll_estimate);
+      }
 
-   Serial.printf(">pitch_estimate_var:%f\n", pitch_estimate.var);
-   Serial.printf(">roll_estimate_var:%f\n", roll_estimate.var);
+      // Serial.printf(">accelx:%d\n", accel.x);
+      // Serial.printf(">accely:%d\n", accel.y);
+      // Serial.printf(">accelz:%d\n", accel.z);
 
+      // Serial.printf(">gyrox:%d\n", gyro.x);
+      // Serial.printf(">gyroy:%d\n", gyro.y);
+      // Serial.printf(">gyroz:%d\n", gyro.z);
+
+      Serial.printf(">pitch%d:%f\n", addr, pitch * (180.f / PI));
+      Serial.printf(">roll%d:%f\n", addr, roll * (180.f / PI));
+
+      Serial.printf(">pitch_estimate%d:%f\n", addr,
+                    mpu.pitch_estimate.value * (180.f / PI));
+      Serial.printf(">roll_estimate%d:%f\n", addr,
+                    mpu.roll_estimate.value * (180.f / PI));
+
+      Serial.printf(">pitch_estimate_var%d:%f\n", addr, mpu.pitch_estimate.var);
+      Serial.printf(">roll_estimate_var%d:%f\n", addr, mpu.roll_estimate.var);
+   }
+
+#ifdef ENABLE_MAGNETIC_SENSOR
    Vec3 mag;
    if (ReadMagneticField(mag))
    {
@@ -881,4 +938,5 @@ loop()
       Serial.printf(">yaw:%f\n", yaw * (180.f / PI));
       Serial.printf(">yaw_estimate:%f\n", yaw_estimate.value * (180.f / PI));
    }
+#endif // ENABLE_MAGNETIC_SENSOR
 }
