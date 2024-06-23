@@ -7,6 +7,7 @@
 #include <LittleFS.h>
 #include <vector>
 
+#include <FastLED.h>
 #include <SdFat.h>
 
 #include "driver/i2s.h"
@@ -28,12 +29,16 @@ constexpr u8 SD_CS   = 26;
 constexpr u8 I2C_SDA = 21;
 constexpr u8 I2C_SCL = 22;
 
-constexpr u8 LED_PIN = 5;
+constexpr u8 BUILTIN_LED_PIN = 5;
+constexpr u8 LED_OUT         = 19;
 #endif
 
 SdFat32  SD;
 SPIClass vSPI;
 bool     SD_card_initialized = false;
+
+constexpr u32 led_count = 2;
+CRGB          leds[led_count];
 
 constexpr u16 MPU6050_address = 0x68;
 
@@ -451,22 +456,12 @@ DestroyWaveFile(Wave& wave)
       free(wave.file.buffer);
 }
 
-// enum WavePlayerState : u8
-// {
-//    Wave_Stop,
-//    Wave_Play,
-//    Wave_FadeIn,
-// };
-
 struct WavePlayer
 {
-   // WavePlayerState state  = Wave_Stop;
    bool playing = false;
    u16  volume  = FloatTo88(0.1f);
-   // u16             fade_scale = 0;
 
    Wave wave;
-   // u32  last_sample = 0;
 };
 
 WavePlayer player = {};
@@ -474,9 +469,6 @@ WavePlayer player = {};
 bool
 LoadSamples(WavePlayer& p)
 {
-   // if (p.state == Wave_Stop)
-   //    return false;
-
    if (!p.playing)
       return false;
 
@@ -485,46 +477,6 @@ LoadSamples(WavePlayer& p)
       if (p.wave.last_sample != S32_MIN)
       {
          u32 sample = p.wave.last_sample;
-         // if (p.state == Wave_FadeIn)
-         // {
-         //    s16 left  = p.wave.last_sample & 0xFFFF;
-         //    s16 right = (p.wave.last_sample >> 16) & 0xFFFF;
-
-         //    s16 prev_left  = p.last_sample & 0xFFFF;
-         //    s16 prev_right = (p.last_sample >> 16) & 0xFFFF;
-
-         //    left  = prev_left;
-         //    right = prev_right;
-
-         //    // left = left + ScaleByU16(prev_left - left, U16_MAX -
-         //    // p.fade_scale); right =
-         //    //     right + ScaleByU16(prev_right - right, U16_MAX -
-         //    //     p.fade_scale);
-
-         //    constexpr u16 fade_rate = 1;
-         //    if (p.fade_scale < U16_MAX - fade_rate)
-         //    {
-         //       // Serial.print(left);
-         //       // Serial.print(" ");
-         //       // Serial.print(prev_left);
-         //       // Serial.print(" ");
-         //       // Serial.println(p.fade_scale);
-         //       p.fade_scale += fade_rate;
-         //    }
-         //    else
-         //    {
-         //       Serial.println("Fade ended");
-         //       p.fade_scale = U16_MAX;
-         //       p.state      = Wave_Play;
-         //    }
-
-         //    sample = (left & 0xFFFF) | (right << 16);
-         // }
-         // else
-         // {
-         //    p.last_sample = p.wave.last_sample;
-         //    // Serial.println((s16)(p.last_sample & 0xFFFF));
-         // }
 
          size_t bytes_written;
          i2s_write(I2S_NUM_0, &sample, sizeof(s16) * 2, &bytes_written, 0);
@@ -532,8 +484,7 @@ LoadSamples(WavePlayer& p)
          if (bytes_written == 0)
             break;
       }
-      // if ((p.state != Wave_FadeIn) || (p.wave.last_sample == S32_MIN))
-      // {
+
       s16 left  = 0;
       s16 right = 0;
       if (p.wave.header.channel_count == 1)
@@ -541,7 +492,6 @@ LoadSamples(WavePlayer& p)
          s16 sample = 0;
          if (!ReadFile(p.wave.file, sample))
          {
-            // p.state = Wave_Stop;
             p.playing = false;
             return false;
          }
@@ -553,14 +503,12 @@ LoadSamples(WavePlayer& p)
       {
          if (!ReadFile(p.wave.file, left))
          {
-            // p.state = Wave_Stop;
             p.playing = false;
             return false;
          }
 
          if (!ReadFile(p.wave.file, right))
          {
-            // p.state = Wave_Stop;
             p.playing = false;
             return false;
          }
@@ -568,7 +516,6 @@ LoadSamples(WavePlayer& p)
 
       p.wave.last_sample = (ScaleBy88(left, p.volume) & 0xFFFF)
                            | (ScaleBy88(right, p.volume) << 16);
-      // }
    }
    return true;
 }
@@ -586,9 +533,7 @@ StartWaveFile(File32 file, u16 volume)
 
    DestroyWaveFile(player.wave);
    LoadWaveFile(player.wave, file);
-   player.volume = volume;
-   // player.state      = Wave_FadeIn;
-   // player.fade_scale = 0;
+   player.volume  = volume;
    player.playing = true;
 }
 
@@ -865,6 +810,124 @@ InitSDCard()
    return true;
 }
 
+void
+UpdateLeds(bool on)
+{
+   u32           time              = millis();
+   constexpr u32 led_update_period = 1000 / 30;
+   static u32    next_led_update   = time;
+   static bool   leds_on           = false;
+
+   if (time > next_led_update)
+   {
+      next_led_update += led_update_period;
+
+      if (on)
+      {
+         auto    offset     = beat8(/*bpm*/ 256 * 120);
+         auto    brightness = beatsin88(/*bpm*/ 256 * 33, 64, 255);
+         uint8_t i          = 0;
+         for (auto& led : leds)
+         {
+            auto x = sin8(offset + i * 255 / (led_count + 1));
+            led    = CRGB(CHSV(map8(x, 20, 40), 255, brightness));
+            i++;
+         }
+         FastLED.show();
+      }
+      else if (leds_on)
+      {
+         for (auto& led : leds)
+         {
+            led = CRGB(0);
+         }
+         FastLED.show();
+      }
+      leds_on = on;
+   }
+}
+
+void
+ReadSpaces(const char** str_ptr)
+{
+   auto* str = *str_ptr;
+   while (*str)
+   {
+      if (*str != ' ' && *str != '\r' && *str != '\n')
+      {
+         break;
+      }
+      str++;
+   }
+   *str_ptr = str;
+}
+
+const char*
+ReadWord(const char** str_ptr)
+{
+   auto* str = *str_ptr;
+   auto* ret = str;
+   while (*str)
+   {
+      if (*str == ' ' || *str == '\r' || *str == '\n')
+      {
+         break;
+      }
+      str++;
+   }
+   *str_ptr = str;
+   return ret;
+}
+
+u16
+ReadU16(const char** str_ptr)
+{
+   u16   value = 0;
+   auto* str   = *str_ptr;
+   while (*str)
+   {
+      if (*str == ' ' || *str == '\r' || *str == '\n')
+      {
+         break;
+      }
+      if (*str >= '0' && *str <= '9')
+      {
+         value *= 10;
+         value += *str - '0';
+      }
+      else
+      {
+         Serial.println(F("Error in ReadU16, not a number"));
+         break;
+      }
+
+      str++;
+   }
+   *str_ptr = str;
+   return value;
+}
+
+bool
+StringMatch(const char* str1, const char* end1, const char* str2)
+{
+   while (str1 < end1 && *str2)
+   {
+      if (*str1 != *str2)
+      {
+         return false;
+      }
+      str1++;
+      str2++;
+   }
+
+   if (str1 == end1 && *str2 == 0)
+   {
+      return true;
+   }
+
+   return false;
+}
+
 u32 time_sound_ended = 0;
 
 struct SoundCooldownRange
@@ -887,11 +950,19 @@ u16 volume_awake = FloatTo88(0.3f);
 u16 volume_sleep = FloatTo88(0.1f);
 
 u32           fall_asleep_time     = 0;
-constexpr u32 fall_asleep_duration = 1000 * 60 * 10;
+constexpr u32 fall_asleep_duration = 1000 * 60 * 5;
 
 void
 setup()
 {
+   // Turn the LEDs off.
+   FastLED.addLeds<NEOPIXEL, LED_OUT>(leds, led_count);
+   for (auto& led : leds)
+   {
+      led = CRGB(0);
+   }
+   FastLED.show();
+
    Serial.begin(SERIAL_BAUD_RATE);
 
    Serial.print(F("Init\n"));
@@ -926,6 +997,44 @@ setup()
             Serial.println(s);
          }
          Serial.println();
+      }
+
+      Serial.println(F("Loading volume file"));
+      auto file = SD.open("/volume.txt");
+      char data[255];
+      auto size  = file.read(data, sizeof(data) - 1);
+      data[size] = 0;
+      file.close();
+      const char* str = data;
+      while (*str)
+      {
+         ReadSpaces(&str);
+         auto word = ReadWord(&str);
+         if (StringMatch(word, str, "sleep"))
+         {
+            ReadSpaces(&str);
+            volume_sleep = FloatTo88(ReadU16(&str) / 100.f);
+         }
+         else if (StringMatch(word, str, "awake"))
+         {
+            ReadSpaces(&str);
+            volume_awake = FloatTo88(ReadU16(&str) / 100.f);
+         }
+         else if (StringMatch(word, str, "moved"))
+         {
+            ReadSpaces(&str);
+            volume_moved = FloatTo88(ReadU16(&str) / 100.f);
+         }
+         else
+         {
+            Serial.print(F("Unknown volume: "));
+            while (word != str)
+            {
+               Serial.print(*word);
+               word++;
+            }
+            Serial.println();
+         }
       }
    }
    else
@@ -985,8 +1094,6 @@ setup()
       ;
    mag_max = mag_min;
 #endif // ENABLE_MAGNETIC_SENSOR
-
-   StartWaveFile(SD.open("/sleep/sleep.wav"), volume_sleep);
 }
 
 inline Vec3
@@ -1039,6 +1146,8 @@ loop()
          Serial.printf("Awake sound cooldown = %d\n", awake_sound_cooldown);
       }
    }
+
+   UpdateLeds(!is_asleep);
 
    for (u8 addr = 0; addr < 2; addr++)
    {
