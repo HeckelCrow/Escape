@@ -18,7 +18,9 @@ using f32 = float;
 #include <limits>
 constexpr s16 S16_MAX = std::numeric_limits<s16>::max();
 constexpr s16 S16_MIN = std::numeric_limits<s16>::min();
+
 constexpr s32 S32_MAX = std::numeric_limits<s32>::max();
 constexpr s32 S32_MIN = std::numeric_limits<s32>::min();
 
 constexpr u32 U32_MAX = std::numeric_limits<u32>::max();
+constexpr u16 U16_MAX = std::numeric_limits<u16>::max();

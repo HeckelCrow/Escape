@@ -5,6 +5,7 @@
 #include <SPI.h>
 #define FS_NO_GLOBALS
 #include <LittleFS.h>
+#include <vector>
 
 #include <SdFat.h>
 
@@ -29,8 +30,8 @@ constexpr u8 I2C_SCL = 22;
 constexpr u8 LED_PIN = 5;
 #endif
 
-File32 sound_dir;
-f32    volume = 0.1;
+std::vector<String> awake_sounds;
+std::vector<String> moved_sounds;
 
 SdFat32  SD;
 SPIClass vSPI;
@@ -111,6 +112,35 @@ EndsWithWav(char* str, size_t size)
    return true;
 }
 
+std::vector<String>
+ListAllWaveFiles(File32 dir)
+{
+   std::vector<String> vec;
+   while (true)
+   {
+      auto file = dir.openNextFile();
+      if (!file)
+      {
+         break;
+      }
+      if (!file.isDirectory())
+      {
+         char   filename[64];
+         size_t size = file.getName(filename, sizeof(filename));
+
+         // Serial.print(F("File: "));
+         // file.printName(&Serial);
+         // Serial.print(F("\n"));
+         if (EndsWithWav(filename, size))
+         {
+            vec.push_back(String(filename, size));
+         }
+      }
+   }
+   vec.shrink_to_fit();
+   return std::move(vec);
+}
+
 struct WaveFile
 {
    File32 handle;
@@ -118,13 +148,17 @@ struct WaveFile
    static constexpr u32 buffer_size = 256;
    u8*                  buffer      = nullptr;
 
-   u8* read_ptr = 0;
-   u8* end      = 0;
+   u8* read_ptr       = 0;
+   u8* end            = 0;
+   u32 data_left_size = U32_MAX;
 };
 
 bool
 LoadFileIntoBuffer(WaveFile& file)
 {
+   if (!file.data_left_size)
+      return false;
+
    u32 old_data = file.end - file.read_ptr;
    u8* dest     = file.buffer;
    if (old_data)
@@ -139,7 +173,10 @@ LoadFileIntoBuffer(WaveFile& file)
 
       dest += old_data;
    }
-   u32 loaded = file.handle.read(dest, file.buffer + file.buffer_size - dest);
+   u32 size_to_read = file.buffer + file.buffer_size - dest;
+   size_to_read     = min(size_to_read, file.data_left_size);
+   u32 loaded       = file.handle.read(dest, size_to_read);
+   file.data_left_size -= loaded;
 
    // Serial.println("\nnew data:");
    // for (u32 i = 0; i < loaded; i++)
@@ -149,8 +186,12 @@ LoadFileIntoBuffer(WaveFile& file)
 
    file.read_ptr = file.buffer;
    file.end      = dest + loaded;
-
-   return loaded != 0;
+   if (loaded == 0)
+   {
+      file.data_left_size = 0; // TODO: check that this isn't happening
+      Serial.println("ERROR!");
+   }
+   return (loaded == 0);
 }
 
 template<typename T>
@@ -177,7 +218,7 @@ struct WaveHeader
    u16 channel_count   = 0;
    u32 sample_rate     = 0;
    u16 bits_per_sample = 0;
-   u32 data_size       = 0;
+   // u32 data_size       = 0;
 };
 
 constexpr u32
@@ -254,7 +295,9 @@ DecodeWaveHeader(WaveHeader& header, WaveFile& file)
 
       if (data_str == StringToU32("data"))
       {
-         header.data_size = section_size;
+         // header.data_size = section_size;
+         u32 already_loaded  = file.end - file.read_ptr;
+         file.data_left_size = section_size - already_loaded;
          break;
       }
       else if (data_str == StringToU32("LIST"))
@@ -355,6 +398,17 @@ ScaleBy88(s32 value, u16 scale)
    return value;
 }
 
+s16
+ScaleByU16(s32 value, u16 scale)
+{
+   value = (value * scale) >> 16;
+   if (value < S16_MIN)
+      return S16_MIN;
+   if (value > S16_MAX)
+      return S16_MAX;
+   return value;
+}
+
 /*
    https://docs.fileformat.com/audio/wav/
    https://www.recordingblogs.com/wiki/list-chunk-of-a-wave-file
@@ -366,16 +420,15 @@ struct Wave
    WaveFile   file;
    WaveHeader header;
    s32        last_sample = S32_MIN;
-   u16        volume      = FloatTo88(0.1f);
 };
-
-Wave wave_file = {};
 
 bool
 LoadWaveFile(Wave& wave, const File32& file32)
 {
+   wave             = Wave();
    wave.file.handle = file32;
    wave.file.buffer = (u8*)malloc(wave.file.buffer_size);
+
    if (!wave.file.buffer)
    {
       Serial.println(F("malloc failed"));
@@ -400,69 +453,145 @@ DestroyWaveFile(Wave& wave)
       free(wave.file.buffer);
 }
 
-bool
-LoadSamples(Wave& wave)
+// enum WavePlayerState : u8
+// {
+//    Wave_Stop,
+//    Wave_Play,
+//    Wave_FadeIn,
+// };
+
+struct WavePlayer
 {
+   // WavePlayerState state  = Wave_Stop;
+   bool playing = false;
+   u16  volume  = FloatTo88(0.1f);
+   // u16             fade_scale = 0;
+
+   Wave wave;
+   // u32  last_sample = 0;
+};
+
+WavePlayer player = {};
+
+bool
+LoadSamples(WavePlayer& p)
+{
+   // if (p.state == Wave_Stop)
+   //    return false;
+
+   if (!p.playing)
+      return false;
+
    while (true)
    {
-      if (wave.last_sample != S32_MIN)
+      if (p.wave.last_sample != S32_MIN)
       {
+         u32 sample = p.wave.last_sample;
+         // if (p.state == Wave_FadeIn)
+         // {
+         //    s16 left  = p.wave.last_sample & 0xFFFF;
+         //    s16 right = (p.wave.last_sample >> 16) & 0xFFFF;
+
+         //    s16 prev_left  = p.last_sample & 0xFFFF;
+         //    s16 prev_right = (p.last_sample >> 16) & 0xFFFF;
+
+         //    left  = prev_left;
+         //    right = prev_right;
+
+         //    // left = left + ScaleByU16(prev_left - left, U16_MAX -
+         //    // p.fade_scale); right =
+         //    //     right + ScaleByU16(prev_right - right, U16_MAX -
+         //    //     p.fade_scale);
+
+         //    constexpr u16 fade_rate = 1;
+         //    if (p.fade_scale < U16_MAX - fade_rate)
+         //    {
+         //       // Serial.print(left);
+         //       // Serial.print(" ");
+         //       // Serial.print(prev_left);
+         //       // Serial.print(" ");
+         //       // Serial.println(p.fade_scale);
+         //       p.fade_scale += fade_rate;
+         //    }
+         //    else
+         //    {
+         //       Serial.println("Fade ended");
+         //       p.fade_scale = U16_MAX;
+         //       p.state      = Wave_Play;
+         //    }
+
+         //    sample = (left & 0xFFFF) | (right << 16);
+         // }
+         // else
+         // {
+         //    p.last_sample = p.wave.last_sample;
+         //    // Serial.println((s16)(p.last_sample & 0xFFFF));
+         // }
+
          size_t bytes_written;
-         i2s_write(I2S_NUM_0, &wave.last_sample, sizeof(s16) * 2,
-                   &bytes_written, 0);
+         i2s_write(I2S_NUM_0, &sample, sizeof(s16) * 2, &bytes_written, 0);
+
          if (bytes_written == 0)
             break;
       }
-
+      // if ((p.state != Wave_FadeIn) || (p.wave.last_sample == S32_MIN))
+      // {
       s16 left  = 0;
       s16 right = 0;
-      if (wave.header.channel_count == 1)
+      if (p.wave.header.channel_count == 1)
       {
          s16 sample = 0;
-         if (!ReadFile(wave.file, sample))
+         if (!ReadFile(p.wave.file, sample))
+         {
+            // p.state = Wave_Stop;
+            p.playing = false;
             return false;
+         }
 
          left  = sample;
          right = sample;
       }
-      else if (wave.header.channel_count == 2)
+      else if (p.wave.header.channel_count == 2)
       {
-         if (!ReadFile(wave.file, left))
+         if (!ReadFile(p.wave.file, left))
+         {
+            // p.state = Wave_Stop;
+            p.playing = false;
             return false;
+         }
 
-         if (!ReadFile(wave.file, right))
+         if (!ReadFile(p.wave.file, right))
+         {
+            // p.state = Wave_Stop;
+            p.playing = false;
             return false;
+         }
       }
-      wave.last_sample = (ScaleBy88(left, wave.volume) & 0xffff)
-                         | (ScaleBy88(right, wave.volume) << 16);
+
+      p.wave.last_sample = (ScaleBy88(left, p.volume) & 0xFFFF)
+                           | (ScaleBy88(right, p.volume) << 16);
+      // }
    }
    return true;
 }
 
 void
-StartNextFile()
+StartWaveFile(File32 file, u16 volume)
 {
-   while (true)
+   if (!file)
    {
-      File32 file = sound_dir.openNextFile();
-      if (!file)
-      {
-         break;
-      }
-
-      char   filename[64];
-      size_t size = file.getName(filename, sizeof(filename));
-
-      Serial.print(F("File: "));
-      file.printName(&Serial);
-      Serial.print(F("\n"));
-      if (EndsWithWav(filename, size))
-      {
-         DestroyWaveFile(wave_file);
-         LoadWaveFile(wave_file, file);
-         break;
-      }
+      return;
    }
+   Serial.print("StartWaveFile: ");
+   file.printName(&Serial);
+   Serial.println();
+
+   DestroyWaveFile(player.wave);
+   LoadWaveFile(player.wave, file);
+   player.volume = volume;
+   // player.state      = Wave_FadeIn;
+   // player.fade_scale = 0;
+   player.playing = true;
 }
 
 struct Vec3
@@ -624,9 +753,11 @@ struct MPU6050
    KalmanEstimate pitch_estimate = {};
    KalmanEstimate roll_estimate  = {};
    u32            prev_time      = 0;
+
+   Vec3 dir_ref = {0, 0, 0};
 };
 
-MPU6050 mpu6050[2];
+MPU6050 mpu6050[2] = {};
 
 #ifdef ENABLE_MAGNETIC_SENSOR
 KalmanEstimate yaw_estimate = {};
@@ -736,6 +867,27 @@ InitSDCard()
    return true;
 }
 
+u32 time_sound_ended = 0;
+
+struct SoundCooldownRange
+{
+   u32 min;
+   u32 max;
+};
+
+constexpr SoundCooldownRange moved_sound_cooldown_range  = {200, 1000};
+constexpr SoundCooldownRange awake_sound_cooldown__range = {1000, 5000};
+
+u16 moved_sound_cooldown = 0;
+u16 awake_sound_cooldown = 0;
+
+u16 volume_moved = FloatTo88(0.5f);
+u16 volume_awake = FloatTo88(0.3f);
+u16 volume_sleep = FloatTo88(0.1f);
+
+u32           fall_asleep_time     = 0;
+constexpr u32 fall_asleep_duration = 1000 * 60 * 10;
+
 void
 setup()
 {
@@ -749,8 +901,31 @@ setup()
 
    if (InitSDCard())
    {
-      sound_dir = SD.open("/");
-      PrintDirectory(sound_dir);
+      auto dir = SD.open("/");
+      PrintDirectory(dir);
+
+      dir = SD.open("/awake");
+      if (dir)
+      {
+         awake_sounds = ListAllWaveFiles(dir);
+         Serial.println(F("Awake sounds:"));
+         for (auto& s : awake_sounds)
+         {
+            Serial.println(s);
+         }
+         Serial.println();
+      }
+      dir = SD.open("/moved");
+      if (dir)
+      {
+         moved_sounds = ListAllWaveFiles(dir);
+         Serial.println(F("Moved sounds:"));
+         for (auto& s : moved_sounds)
+         {
+            Serial.println(s);
+         }
+         Serial.println();
+      }
    }
    else
    {
@@ -765,7 +940,7 @@ setup()
        .communication_format = I2S_COMM_FORMAT_STAND_I2S,
        .intr_alloc_flags     = 0, // Default interrupt priority
        .dma_buf_count        = 8,
-       .dma_buf_len          = 256, // TODO: pick buffer length, default 64
+       .dma_buf_len          = 64, // TODO: pick buffer length, default 64
        .use_apll             = false,
        .tx_desc_auto_clear   = true, // Auto clear tx descriptor on underflow
        .fixed_mclk           = 0};
@@ -777,9 +952,6 @@ setup()
                                   .data_out_num = I2S_DOUT,
                                   .data_in_num  = I2S_PIN_NO_CHANGE};
    i2s_set_pin(I2S_NUM_0, &pin_config);
-
-   if (SD_card_initialized)
-      StartNextFile();
 
    Wire.begin(I2C_SDA, I2C_SCL);
 
@@ -812,6 +984,8 @@ setup()
       ;
    mag_max = mag_min;
 #endif // ENABLE_MAGNETIC_SENSOR
+
+   StartWaveFile(SD.open("/sleep/sleep.wav"), volume_sleep);
 }
 
 inline Vec3
@@ -833,9 +1007,28 @@ Dot(const Vec3& a, const Vec3& b)
 void
 loop()
 {
-   if (SD_card_initialized && !LoadSamples(wave_file))
+   bool is_asleep = (millis() > fall_asleep_time);
+   // if (player.state != Wave_Stop)
+   if (player.playing)
    {
-      StartNextFile();
+      if (!LoadSamples(player))
+      {
+         time_sound_ended = millis();
+      }
+   }
+   else
+   {
+      if (is_asleep)
+      {
+         // Asleep
+         StartWaveFile(SD.open("/sleep/sleep.wav"), volume_sleep);
+      }
+      else if (millis() > time_sound_ended + awake_sound_cooldown)
+      {
+         // Grunting while awake
+         StartWaveFile(SD.open("/awake/002.wav"), volume_awake);
+         awake_sound_cooldown = awake_sound_cooldown__range.min;
+      }
    }
 
    for (u8 addr = 0; addr < 2; addr++)
@@ -851,13 +1044,53 @@ loop()
       gyro.y -= mpu.gyro_offset.y;
       gyro.z -= mpu.gyro_offset.z;
 
+      auto time     = micros();
+      f32  dt       = (f32)(time - mpu.prev_time) / 1000000.f;
+      mpu.prev_time = time;
+      KalmanFilterStep(dt, pitch, gyro.y, mpu.pitch_estimate);
+      KalmanFilterStep(dt, roll, gyro.x, mpu.roll_estimate);
+
+      Vec3 vec;
+      f32  cos_pitch = cosf(mpu.pitch_estimate.value);
+      f32  sin_pitch = sinf(mpu.pitch_estimate.value);
+      f32  cos_roll  = cosf(mpu.roll_estimate.value);
+      f32  sin_roll  = sinf(mpu.roll_estimate.value);
+      vec.x          = cos_pitch * cos_roll;
+      vec.y          = cos_pitch * sin_roll;
+      vec.z          = sin_pitch;
+
+      if (mpu.dir_ref.x == 0 && mpu.dir_ref.y == 0 && mpu.dir_ref.z == 0)
       {
-         auto time     = micros();
-         f32  dt       = (f32)(time - mpu.prev_time) / 1000000.f;
-         mpu.prev_time = time;
-         KalmanFilterStep(dt, pitch, gyro.y, mpu.pitch_estimate);
-         KalmanFilterStep(dt, roll, gyro.x, mpu.roll_estimate);
+         mpu.dir_ref = vec;
       }
+      else if (Dot(vec, mpu.dir_ref) < cos(20.f * PI / 180.f))
+      {
+         mpu.dir_ref = vec;
+
+         u32 time = millis();
+
+         // If asleep or moved_sound_cooldown ended
+         if (time > fall_asleep_time
+             || (time > time_sound_ended + moved_sound_cooldown
+                 && !player.playing))
+         {
+            // Grunting when moved
+            StartWaveFile(SD.open("/awake/001.wav"), volume_awake);
+            moved_sound_cooldown = moved_sound_cooldown_range.min;
+            fall_asleep_time     = time + fall_asleep_duration;
+         }
+      }
+
+      // Serial.printf(">vecx%d:%f\n", addr, vec.x);
+      // Serial.printf(">vecy%d:%f\n", addr, vec.y);
+      // Serial.printf(">vecz%d:%f\n", addr, vec.z);
+
+      // Serial.printf(">dir_refx%d:%f\n", addr, mpu.dir_ref.x);
+      // Serial.printf(">dir_refy%d:%f\n", addr, mpu.dir_ref.y);
+      // Serial.printf(">dir_refz%d:%f\n", addr, mpu.dir_ref.z);
+
+      // Serial.printf(">dot%d:%f\n", addr, Dot(vec, mpu.dir_ref) * (180.f /
+      // PI));
 
       // Serial.printf(">accelx:%d\n", accel.x);
       // Serial.printf(">accely:%d\n", accel.y);
@@ -867,16 +1100,17 @@ loop()
       // Serial.printf(">gyroy:%d\n", gyro.y);
       // Serial.printf(">gyroz:%d\n", gyro.z);
 
-      Serial.printf(">pitch%d:%f\n", addr, pitch * (180.f / PI));
-      Serial.printf(">roll%d:%f\n", addr, roll * (180.f / PI));
+      // Serial.printf(">pitch%d:%f\n", addr, pitch * (180.f / PI));
+      // Serial.printf(">roll%d:%f\n", addr, roll * (180.f / PI));
 
-      Serial.printf(">pitch_estimate%d:%f\n", addr,
-                    mpu.pitch_estimate.value * (180.f / PI));
-      Serial.printf(">roll_estimate%d:%f\n", addr,
-                    mpu.roll_estimate.value * (180.f / PI));
+      // Serial.printf(">pitch_estimate%d:%f\n", addr,
+      //               mpu.pitch_estimate.value * (180.f / PI));
+      // Serial.printf(">roll_estimate%d:%f\n", addr,
+      //               mpu.roll_estimate.value * (180.f / PI));
 
-      Serial.printf(">pitch_estimate_var%d:%f\n", addr, mpu.pitch_estimate.var);
-      Serial.printf(">roll_estimate_var%d:%f\n", addr, mpu.roll_estimate.var);
+      // Serial.printf(">pitch_estimate_var%d:%f\n", addr,
+      // mpu.pitch_estimate.var); Serial.printf(">roll_estimate_var%d:%f\n",
+      // addr, mpu.roll_estimate.var);
    }
 
 #ifdef ENABLE_MAGNETIC_SENSOR
