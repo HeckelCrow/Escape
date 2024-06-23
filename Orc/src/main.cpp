@@ -818,19 +818,20 @@ UpdateLeds(bool on)
    static u32    next_led_update   = time;
    static bool   leds_on           = false;
 
+   static u8 t = 0;
+
    if (time > next_led_update)
    {
       next_led_update += led_update_period;
 
       if (on)
       {
-         auto    offset     = beat8(/*bpm*/ 256 * 120);
-         auto    brightness = beatsin88(/*bpm*/ 256 * 33, 64, 255);
-         uint8_t i          = 0;
+         t += 1;
+         auto    x = sin8(t);
+         uint8_t i = 0;
          for (auto& led : leds)
          {
-            auto x = sin8(offset + i * 255 / (led_count + 1));
-            led    = CRGB(CHSV(map8(x, 20, 40), 255, brightness));
+            led = CRGB(CHSV(map8(x, 0, 20), 255, 255));
             i++;
          }
          FastLED.show();
