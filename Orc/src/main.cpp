@@ -10,6 +10,7 @@
 #include <SdFat.h>
 
 #include "driver/i2s.h"
+#include "esp_random.h"
 
 // #define ENABLE_MAGNETIC_SENSOR 0
 
@@ -29,9 +30,6 @@ constexpr u8 I2C_SCL = 22;
 
 constexpr u8 LED_PIN = 5;
 #endif
-
-std::vector<String> awake_sounds;
-std::vector<String> moved_sounds;
 
 SdFat32  SD;
 SPIClass vSPI;
@@ -875,8 +873,11 @@ struct SoundCooldownRange
    u32 max;
 };
 
-constexpr SoundCooldownRange moved_sound_cooldown_range  = {200, 1000};
-constexpr SoundCooldownRange awake_sound_cooldown__range = {1000, 5000};
+std::vector<String> awake_sounds;
+std::vector<String> moved_sounds;
+
+constexpr SoundCooldownRange moved_sound_cooldown_range = {200, 1000};
+constexpr SoundCooldownRange awake_sound_cooldown_range = {1000, 5000};
 
 u16 moved_sound_cooldown = 0;
 u16 awake_sound_cooldown = 0;
@@ -1026,8 +1027,16 @@ loop()
       else if (millis() > time_sound_ended + awake_sound_cooldown)
       {
          // Grunting while awake
-         StartWaveFile(SD.open("/awake/002.wav"), volume_awake);
-         awake_sound_cooldown = awake_sound_cooldown__range.min;
+         u32    rand  = esp_random();
+         u32    index = rand % awake_sounds.size();
+         String path  = "/awake/" + awake_sounds[index];
+
+         StartWaveFile(SD.open(path), volume_awake);
+
+         rand                 = esp_random();
+         auto& range          = awake_sound_cooldown_range;
+         awake_sound_cooldown = rand % (range.max - range.min) + range.min;
+         Serial.printf("Awake sound cooldown = %d\n", awake_sound_cooldown);
       }
    }
 
@@ -1075,9 +1084,18 @@ loop()
                  && !player.playing))
          {
             // Grunting when moved
-            StartWaveFile(SD.open("/awake/001.wav"), volume_awake);
-            moved_sound_cooldown = moved_sound_cooldown_range.min;
-            fall_asleep_time     = time + fall_asleep_duration;
+            u32    rand  = esp_random();
+            u32    index = rand % moved_sounds.size();
+            String path  = "/moved/" + moved_sounds[index];
+
+            StartWaveFile(SD.open(path), volume_moved);
+
+            rand                 = esp_random();
+            auto& range          = moved_sound_cooldown_range;
+            moved_sound_cooldown = rand % (range.max - range.min) + range.min;
+            Serial.printf("Moved sound cooldown = %d\n", moved_sound_cooldown);
+
+            fall_asleep_time = time + fall_asleep_duration;
          }
       }
 
