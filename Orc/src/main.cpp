@@ -31,6 +31,8 @@ constexpr u8 I2C_SCL = 22;
 
 constexpr u8 BUILTIN_LED_PIN = 5;
 constexpr u8 LED_OUT         = 19;
+
+constexpr u8 SNOOZE_BUTTON = 18;
 #endif
 
 SdFat32  SD;
@@ -972,6 +974,8 @@ setup()
                 "." STRINGIFY(ESP_ARDUINO_VERSION_MINOR)                    //
                 "." STRINGIFY(ESP_ARDUINO_VERSION_PATCH) "\n");             //
 
+   pinMode(SNOOZE_BUTTON, INPUT_PULLUP);
+
    if (InitSDCard())
    {
       auto dir = SD.open("/");
@@ -1116,6 +1120,10 @@ Dot(const Vec3& a, const Vec3& b)
 void
 loop()
 {
+   if (digitalRead(SNOOZE_BUTTON) == 0)
+   {
+      fall_asleep_time = 0;
+   }
    bool is_asleep = (millis() > fall_asleep_time);
    // if (player.state != Wave_Stop)
    if (player.playing)
