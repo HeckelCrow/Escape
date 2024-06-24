@@ -268,8 +268,31 @@ Targets::update(Client& client)
 
         if (ImGui::CollapsingHeader(utf8("Boutons de sons")))
         {
-            // TODO: Show a warning when we try to play a sound with gain_orcs
-            // or gain_global at 0.
+            if (gain_global == 0)
+            {
+                ImGui::TextColored({0.9f, 0.45f, 0.1f, 1.f},
+                                   utf8("Les boutons sont désactivés parce que "
+                                        "le volume général est à 0"));
+            }
+            else
+            {
+                if (gain_orcs == 0)
+                {
+                    ImGui::TextColored(
+                        {0.9f, 0.45f, 0.1f, 1.f},
+                        utf8("Certains boutons sont désactivés parce que "
+                             "le volume de bruits d'orque est à 0"));
+                }
+                if (gain_orcs_hurt == 0)
+                {
+                    ImGui::TextColored(
+                        {0.9f, 0.45f, 0.1f, 1.f},
+                        utf8("Certains boutons sont désactivés parce que "
+                             "le volume d'orques blessés/mort est à 0"));
+                }
+            }
+
+            ImGui::BeginDisabled(gain_orcs == 0 || gain_global == 0);
             if (ImGui::Button(utf8("Orque!")))
             {
                 u32  rand_index = Random(orcs.size() - 1);
@@ -277,15 +300,19 @@ Targets::update(Client& client)
                 SetGain(player, gain_orcs / 100.f * gain_global / 100.f);
                 SetPitch(player, Random(orc_pitch_min, orc_pitch_max));
             }
+            ImGui::EndDisabled();
 
+            ImGui::BeginDisabled(gain_orcs_hurt == 0 || gain_global == 0);
             if (ImGui::Button(utf8("Orque blessé!")))
             {
                 u32  rand_index = Random(orc_hurts.size() - 1);
                 auto player     = PlayAudio(orc_hurts[rand_index]);
-                SetGain(player, gain_orcs / 100.f * gain_global / 100.f);
+                SetGain(player, gain_orcs_hurt / 100.f * gain_global / 100.f);
                 SetPitch(player, Random(orc_pitch_min, orc_pitch_max));
             }
+            ImGui::EndDisabled();
 
+            ImGui::BeginDisabled(gain_orcs == 0 || gain_global == 0);
             if (ImGui::Button(utf8("Orque enervé!")))
             {
                 u32  rand_index = Random(orc_mads.size() - 1);
@@ -293,14 +320,17 @@ Targets::update(Client& client)
                 SetGain(player, gain_orcs / 100.f * gain_global / 100.f);
                 SetPitch(player, Random(orc_pitch_min, orc_pitch_max));
             }
+            ImGui::EndDisabled();
 
+            ImGui::BeginDisabled(gain_orcs_hurt == 0 || gain_global == 0);
             if (ImGui::Button(utf8("Orque mort!")))
             {
                 u32  rand_index = Random(orc_deaths.size() - 1);
                 auto player     = PlayAudio(orc_deaths[rand_index]);
-                SetGain(player, gain_orcs / 100.f * gain_global / 100.f);
+                SetGain(player, gain_orcs_hurt / 100.f * gain_global / 100.f);
                 SetPitch(player, Random(orc_pitch_min, orc_pitch_max));
             }
+            ImGui::EndDisabled();
         }
     }
     ImGui::End();
