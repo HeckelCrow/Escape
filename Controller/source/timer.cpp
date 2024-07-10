@@ -132,15 +132,17 @@ DrawTimer(Timer& timer)
         }
 
         auto& sound_selected = timer.sounds[timer.sound_selected];
-        if (ImGui::BeginCombo(utf8("Son"),
-                              sound_selected.path.filename().string().c_str()))
+        if (ImGui::BeginCombo(
+                utf8("Son"),
+                (const char*)sound_selected.path.filename().u8string().c_str()))
         {
             u32 i = 0;
             for (auto& sound : timer.sounds)
             {
                 const bool is_selected = (i == timer.sound_selected);
-                if (ImGui::Selectable(sound.path.filename().string().c_str(),
-                                      is_selected))
+                if (ImGui::Selectable(
+                        (const char*)sound.path.filename().u8string().c_str(),
+                        is_selected))
                 {
                     timer.sound_selected = i;
                 }

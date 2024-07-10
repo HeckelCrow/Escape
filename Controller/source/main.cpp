@@ -541,7 +541,8 @@ main(int argc, char* argv[])
 
             for (auto& music : musics)
             {
-                if (ImGui::Button(music.path.filename().string().c_str()))
+                if (ImGui::Button(
+                        (const char*)music.path.filename().u8string().c_str()))
                 {
                     prev_music_playing = music_playing;
                     music_playing      = PlayAudio(music);
