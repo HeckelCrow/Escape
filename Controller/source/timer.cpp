@@ -85,6 +85,28 @@ DrawTimer(Timer& timer)
         }
         ImGui::EndDisabled();
 
+        ImGui::BeginDisabled(!timer.paused);
+        if (ImGui::Button(utf8("Remise à zero")))
+        {
+            auto ms      = timer.time.count() / 1000;
+            auto sec     = ms / 1000 % 60;
+            auto minutes = ms / 1000 / 60;
+            PrintSuccess("Last time: {:02}:{:02}\n", minutes, sec);
+            timer.time = Seconds(0);
+        }
+        ImGui::EndDisabled();
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)
+            && !timer.paused)
+        {
+            if (ImGui::BeginTooltip())
+            {
+                ImGui::Text(utf8("Le bouton de remise à zero est désactivé "
+                                 "lorsque le chrono est lancé pour éviter de "
+                                 "cliquer dessus par erreur."));
+                ImGui::EndTooltip();
+            }
+        }
+
         ImGui::Separator();
         ImGui::Text(utf8("Rappel toutes les"));
         ImGui::SameLine();
