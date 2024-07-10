@@ -51,6 +51,34 @@ ReadBinaryFile(const Path& path)
     return data;
 }
 
+void
+WriteFile(const Path& path, StrPtr data)
+{
+    WStr   path_16 = path.wstring();
+    HANDLE file = CreateFileW(path_16.c_str(), GENERIC_WRITE, FILE_SHARE_READ,
+                              NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (file != INVALID_HANDLE_VALUE)
+    {
+        SCOPE_EXIT({ CloseHandle(file); });
+        LARGE_INTEGER file_size;
+
+        DWORD bytes_written;
+        if (WriteFile(file, &data[0], data.size(), &bytes_written, NULL))
+        {
+            if (bytes_written != data.size())
+            {
+                PrintWarning(
+                    "Couldn't write the whole file. Expected {} but read {}\n",
+                    data.size(), bytes_written);
+            }
+        }
+        else
+        {
+            PrintError("WriteFile failed (error: {})\n", GetLastError());
+        }
+    }
+}
+
 Str
 WideCharToUtf8(const wchar_t* wide, s32 count)
 {

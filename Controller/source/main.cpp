@@ -290,6 +290,10 @@ main(int argc, char* argv[])
     SetConsoleOutputCP(CP_UTF8);
     Print("Hello.\n");
 
+    Path settings_path = "data/settings.txt";
+    LoadSettings(settings_path);
+    SCOPE_EXIT({ SaveSettings(settings_path); });
+
     glfwSetErrorCallback(GlfwErrorCallback);
     if (!glfwInit())
     {
