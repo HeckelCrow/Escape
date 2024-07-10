@@ -329,7 +329,6 @@ main(int argc, char* argv[])
 
     std::vector<AudioBuffer> musics;
     AudioPlaying             music_playing;
-    AudioPlaying             prev_music_playing;
 
     for (auto const& dir_entry :
          std::filesystem::directory_iterator{"data/musics/"})
@@ -551,10 +550,8 @@ main(int argc, char* argv[])
                 if (ImGui::Button(
                         (const char*)music.path.filename().u8string().c_str()))
                 {
-                    prev_music_playing = music_playing;
-                    music_playing      = PlayAudio(music);
-                    SetGain(music_playing, gain_music / 100.f);
-                    StopAudio(prev_music_playing);
+                    StopAudio(music_playing);
+                    music_playing = PlayAudio(music, Gain(gain_music / 100.f));
                 }
             }
             if (IsPlaying(music_playing))

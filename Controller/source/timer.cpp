@@ -137,8 +137,8 @@ DrawTimer(Timer& timer)
         if (ImGui::Button(utf8("Jouer manuellement")))
         {
             StopAudio(timer.playing);
-            timer.playing = PlayAudio(timer.sounds[timer.sound_selected]);
-            SetGain(timer.playing, timer.sound_gain / 100.f);
+            timer.playing = PlayAudio(timer.sounds[timer.sound_selected],
+                                      Gain(timer.sound_gain / 100.f));
         }
         if (IsPlaying(timer.playing))
         {
@@ -195,8 +195,8 @@ DrawTimer(Timer& timer)
                 StopAudio(timer.playing);
                 u32 to_play =
                     (prev / timer.reminder_period) % timer.sounds.size();
-                timer.playing = PlayAudio(timer.sounds[to_play]);
-                SetGain(timer.playing, timer.sound_gain / 100.f);
+                timer.playing = PlayAudio(timer.sounds[to_play],
+                                          Gain(timer.sound_gain / 100.f));
             }
         }
     }

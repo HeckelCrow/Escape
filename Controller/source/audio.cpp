@@ -268,7 +268,7 @@ DestroyAudioBuffer(AudioBuffer& buffer)
 }
 
 AudioPlaying
-PlayAudio(const AudioBuffer& buffer)
+PlayAudio(const AudioBuffer& buffer, AudioSettings s)
 {
     AudioPlaying playing = {};
 
@@ -306,8 +306,8 @@ PlayAudio(const AudioBuffer& buffer)
     else
     {
         alSourcei(source.al_source, AL_BUFFER, (ALint)buffer.al_buffer);
-        alSourcef(source.al_source, AL_GAIN, 1.f);
-        alSourcef(source.al_source, AL_PITCH, 1.f);
+        alSourcef(source.al_source, AL_GAIN, s.gain);
+        alSourcef(source.al_source, AL_PITCH, s.pitch);
         alSourcePlay(source.al_source);
     }
 

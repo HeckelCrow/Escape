@@ -27,7 +27,40 @@ struct AudioPlaying
     u32 playing_id   = 0;
 };
 
-AudioPlaying PlayAudio(const AudioBuffer& buffer);
+struct AudioSettings
+{
+    AudioSettings() {}
+
+    AudioSettings
+    operator*(const AudioSettings& other)
+    {
+        AudioSettings res;
+        res.gain  = gain * other.gain;
+        res.pitch = pitch * other.pitch;
+        return res;
+    }
+
+    f32 gain  = 1.f;
+    f32 pitch = 1.f;
+};
+
+inline AudioSettings
+Gain(f32 gain)
+{
+    AudioSettings s;
+    s.gain = gain;
+    return s;
+}
+
+inline AudioSettings
+Pitch(f32 pitch)
+{
+    AudioSettings s;
+    s.pitch = pitch;
+    return s;
+}
+
+AudioPlaying PlayAudio(const AudioBuffer& buffer, AudioSettings s = {});
 void         StopAudio(AudioPlaying& playing);
 bool         IsPlaying(const AudioPlaying& playing);
 void         SetGain(AudioPlaying playing, f32 gain);

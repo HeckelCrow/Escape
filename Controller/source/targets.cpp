@@ -113,21 +113,19 @@ Targets::receiveMessage(Client& client, const TargetsStatus& msg, bool print)
             {
                 StopAudio(sound_playing[i]);
                 u32 rand_index   = Random(orc_deaths.size() - 1);
-                sound_playing[i] = PlayAudio(orc_deaths[rand_index]);
-                SetGain(sound_playing[i],
-                        gain_orcs_hurt / 100.f * gain_global / 100.f);
-                SetPitch(sound_playing[i],
-                         Random(orc_pitch_min, orc_pitch_max));
+                sound_playing[i] = PlayAudio(
+                    orc_deaths[rand_index],
+                    Gain(gain_orcs_hurt / 100.f * gain_global / 100.f)
+                        * Pitch(Random(orc_pitch_min, orc_pitch_max)));
             }
             else
             {
                 StopAudio(sound_playing[i]);
                 u32 rand_index   = Random(orc_hurts.size() - 1);
-                sound_playing[i] = PlayAudio(orc_hurts[rand_index]);
-                SetGain(sound_playing[i],
-                        gain_orcs_hurt / 100.f * gain_global / 100.f);
-                SetPitch(sound_playing[i],
-                         Random(orc_pitch_min, orc_pitch_max));
+                sound_playing[i] = PlayAudio(
+                    orc_hurts[rand_index],
+                    Gain(gain_orcs_hurt / 100.f * gain_global / 100.f)
+                        * Pitch(Random(orc_pitch_min, orc_pitch_max)));
             }
         }
 
@@ -311,9 +309,10 @@ Targets::update(Client& client)
             if (ImGui::Button(utf8("Orque!")))
             {
                 u32  rand_index = Random(orcs.size() - 1);
-                auto player     = PlayAudio(orcs[rand_index]);
-                SetGain(player, gain_orcs / 100.f * gain_global / 100.f);
-                SetPitch(player, Random(orc_pitch_min, orc_pitch_max));
+                auto player     = PlayAudio(
+                    orcs[rand_index],
+                    Gain(gain_orcs / 100.f * gain_global / 100.f)
+                        * Pitch(Random(orc_pitch_min, orc_pitch_max)));
             }
             ImGui::EndDisabled();
 
@@ -321,9 +320,10 @@ Targets::update(Client& client)
             if (ImGui::Button(utf8("Orque blessé!")))
             {
                 u32  rand_index = Random(orc_hurts.size() - 1);
-                auto player     = PlayAudio(orc_hurts[rand_index]);
-                SetGain(player, gain_orcs_hurt / 100.f * gain_global / 100.f);
-                SetPitch(player, Random(orc_pitch_min, orc_pitch_max));
+                auto player     = PlayAudio(
+                    orc_hurts[rand_index],
+                    Gain(gain_orcs_hurt / 100.f * gain_global / 100.f)
+                        * Pitch(Random(orc_pitch_min, orc_pitch_max)));
             }
             ImGui::EndDisabled();
 
@@ -331,9 +331,10 @@ Targets::update(Client& client)
             if (ImGui::Button(utf8("Orque enervé!")))
             {
                 u32  rand_index = Random(orc_mads.size() - 1);
-                auto player     = PlayAudio(orc_mads[rand_index]);
-                SetGain(player, gain_orcs / 100.f * gain_global / 100.f);
-                SetPitch(player, Random(orc_pitch_min, orc_pitch_max));
+                auto player     = PlayAudio(
+                    orc_mads[rand_index],
+                    Gain(gain_orcs / 100.f * gain_global / 100.f)
+                        * Pitch(Random(orc_pitch_min, orc_pitch_max)));
             }
             ImGui::EndDisabled();
 
@@ -341,9 +342,10 @@ Targets::update(Client& client)
             if (ImGui::Button(utf8("Orque mort!")))
             {
                 u32  rand_index = Random(orc_deaths.size() - 1);
-                auto player     = PlayAudio(orc_deaths[rand_index]);
-                SetGain(player, gain_orcs_hurt / 100.f * gain_global / 100.f);
-                SetPitch(player, Random(orc_pitch_min, orc_pitch_max));
+                auto player     = PlayAudio(
+                    orc_deaths[rand_index],
+                    Gain(gain_orcs_hurt / 100.f * gain_global / 100.f)
+                        * Pitch(Random(orc_pitch_min, orc_pitch_max)));
             }
             ImGui::EndDisabled();
         }
@@ -362,11 +364,10 @@ Targets::update(Client& client)
                     {
                         time_last_sound  = Clock::now();
                         u32 rand_index   = Random(orcs.size() - 1);
-                        sound_playing[i] = PlayAudio(orcs[rand_index]);
-                        SetGain(sound_playing[i],
-                                gain_orcs / 100.f * gain_global / 100.f);
-                        SetPitch(sound_playing[i],
-                                 Random(orc_pitch_min, orc_pitch_max));
+                        sound_playing[i] = PlayAudio(
+                            orcs[rand_index],
+                            Gain(gain_orcs / 100.f * gain_global / 100.f)
+                                * Pitch(Random(orc_pitch_min, orc_pitch_max)));
                     }
                 }
             }
