@@ -549,9 +549,9 @@ main(int argc, char* argv[])
                     StopAudio(prev_music_playing);
                 }
             }
-            if (music_playing.source_index != -1)
+            if (IsPlaying(music_playing))
             {
-                if (ImGui::Button("Stop"))
+                if (ImGui::Button(utf8("Arrêter la musique")))
                 {
                     StopAudio(music_playing);
                 }

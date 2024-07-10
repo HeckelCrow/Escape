@@ -101,7 +101,7 @@ DrawTimer(Timer& timer)
             timer.playing = PlayAudio(timer.sounds[timer.sound_selected]);
             SetGain(timer.playing, timer.sound_gain / 100.f);
         }
-        if (timer.playing.source_index != -1)
+        if (IsPlaying(timer.playing))
         {
             if (ImGui::Button(utf8("Arrêter le rappel")))
             {
