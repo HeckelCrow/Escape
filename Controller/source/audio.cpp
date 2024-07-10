@@ -306,6 +306,8 @@ PlayAudio(const AudioBuffer& buffer)
     else
     {
         alSourcei(source.al_source, AL_BUFFER, (ALint)buffer.al_buffer);
+        alSourcef(source.al_source, AL_GAIN, 1.f);
+        alSourcef(source.al_source, AL_PITCH, 1.f);
         alSourcePlay(source.al_source);
     }
 
