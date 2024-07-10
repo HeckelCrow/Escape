@@ -167,13 +167,16 @@ DrawTimer(Timer& timer)
         auto prev = timer.time;
         timer.time += elapsed;
 
-        if (timer.play_sound_auto && timer.reminder_period != Minutes(0))
+        if (timer.play_sound_auto && timer.reminder_period != Minutes(0)
+            && timer.sounds.size())
         {
             if (prev / timer.reminder_period
                 < timer.time / timer.reminder_period)
             {
                 StopAudio(timer.playing);
-                timer.playing = PlayAudio(timer.sounds[timer.sound_selected]);
+                u32 to_play =
+                    (prev / timer.reminder_period) % timer.sounds.size();
+                timer.playing = PlayAudio(timer.sounds[to_play]);
                 SetGain(timer.playing, timer.sound_gain / 100.f);
             }
         }
