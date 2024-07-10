@@ -1,5 +1,6 @@
 #include "timer.hpp"
 #include "print.hpp"
+#include "settings.hpp"
 
 #include <imgui.h>
 
@@ -26,11 +27,27 @@ Timer::Timer()
             sounds.push_back(LoadAudioFile(dir_entry.path()));
         }
     }
+
+    u32 reminder_period_min = 0;
+    if (LoadSettingValue("timer.reminder_period", reminder_period_min))
+    {
+        reminder_period = Minutes(reminder_period_min);
+    }
+    LoadSettingValue("timer.play_sound_auto", play_sound_auto);
+    LoadSettingValue("timer.sound_selected", sound_selected);
+    if (sound_selected >= sounds.size())
+        sound_selected = 0;
+    LoadSettingValue("timer.sound_gain", sound_gain);
 }
 Timer::~Timer()
 {
     for (auto& sound : sounds)
         DestroyAudioBuffer(sound);
+    SaveSettingValue("timer.reminder_period",
+                     (u32)(reminder_period.count() / 1'000'000 / 60));
+    SaveSettingValue("timer.play_sound_auto", play_sound_auto);
+    SaveSettingValue("timer.sound_selected", sound_selected);
+    SaveSettingValue("timer.sound_gain", sound_gain);
 }
 
 void
