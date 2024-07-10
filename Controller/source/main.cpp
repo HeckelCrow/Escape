@@ -482,6 +482,10 @@ main(int argc, char* argv[])
     //        }
     //    }));
 
+    s32 gain_music = 50;
+    LoadSettingValue("music.gain_music", gain_music);
+    SCOPE_EXIT({ SaveSettingValue("music.gain_music", gain_music); });
+
     auto time_start = Clock::now();
     glfwShowWindow(window);
     while (!glfwWindowShouldClose(window))
@@ -537,7 +541,6 @@ main(int argc, char* argv[])
 
         if (ImGui::Begin("Audio"))
         {
-            static s32 gain_music = 50;
             if (ImGui::SliderInt(utf8("Volume musique"), &gain_music, 0, 100))
             {
                 SetGain(music_playing, gain_music / 100.f);
