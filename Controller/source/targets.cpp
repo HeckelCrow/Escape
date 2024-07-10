@@ -3,6 +3,7 @@
 #include "scope_exit.hpp"
 #include "random.hpp"
 #include "server.hpp"
+#include "settings.hpp"
 
 #include <imgui.h>
 
@@ -58,10 +59,24 @@ Targets::Targets()
                 orc_mads.push_back(audio_buff);
         }
     }
+
+    LoadSettingValue("targets.gain_global", gain_global);
+    LoadSettingValue("targets.gain_orcs", gain_orcs);
+    LoadSettingValue("targets.gain_orcs_hurt", gain_orcs_hurt);
+    LoadSettingValue("targets.min_time_between_sounds",
+                     min_time_between_sounds);
+    LoadSettingValue("targets.sound_probability", sound_probability);
 }
 
 Targets::~Targets()
 {
+    SaveSettingValue("targets.gain_global", gain_global);
+    SaveSettingValue("targets.gain_orcs", gain_orcs);
+    SaveSettingValue("targets.gain_orcs_hurt", gain_orcs_hurt);
+    SaveSettingValue("targets.min_time_between_sounds",
+                     min_time_between_sounds);
+    SaveSettingValue("targets.sound_probability", sound_probability);
+
     for (auto& sound : orcs)
         DestroyAudioBuffer(sound);
     for (auto& sound : orc_deaths)
@@ -260,7 +275,7 @@ Targets::update(Client& client)
         ImGui::SliderInt(utf8("Volume bruits d'orque"), &gain_orcs, 0, 100);
         ImGui::SliderInt(utf8("Volume orques blessés/mort"), &gain_orcs_hurt, 0,
                          100);
-
+        ImGui::Separator();
         ImGui::SliderInt(utf8("Temps mini entre cris (ms)"),
                          &min_time_between_sounds, 0, 1000);
         ImGui::SliderInt(utf8("Proba. cris (1/valeur)"), &sound_probability, 1,
