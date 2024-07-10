@@ -86,7 +86,14 @@ DrawTimer(Timer& timer)
         ImGui::EndDisabled();
 
         ImGui::Separator();
-        ImGui::Text(utf8("Rappel toutes les 15 minutes"));
+        ImGui::Text(utf8("Rappel toutes les"));
+        ImGui::SameLine();
+        s32 reminder = timer.reminder_period.count() / 1'000'000 / 60;
+        ImGui::SetNextItemWidth(100);
+        if (ImGui::InputInt("minutes##Rappel toutes les", &reminder))
+        {
+            timer.reminder_period = Minutes(reminder);
+        }
         ImGui::Checkbox(utf8("Jouer automatiquement"), &timer.play_sound_auto);
         if (ImGui::Button(utf8("Jouer manuellement")))
         {
@@ -130,12 +137,10 @@ DrawTimer(Timer& timer)
         auto prev = timer.time;
         timer.time += elapsed;
 
-        constexpr Duration play_sound_times[] = {Minutes(15), Minutes(30),
-                                                 Minutes(45)};
-
-        for (const auto& time : play_sound_times)
+        if (timer.play_sound_auto && timer.reminder_period != Minutes(0))
         {
-            if (prev <= time && timer.time > time)
+            if (prev / timer.reminder_period
+                < timer.time / timer.reminder_period)
             {
                 timer.playing = PlayAudio(timer.sounds[timer.sound_selected]);
                 SetGain(timer.playing, timer.sound_gain / 100.f);

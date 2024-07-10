@@ -143,7 +143,8 @@ struct Timer
     ~Timer();
 
     Timepoint last_measure;
-    Duration  time = Minutes(0);
+    Duration  time            = Minutes(0);
+    Duration  reminder_period = Minutes(30);
 
     bool paused = false;
 
