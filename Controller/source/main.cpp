@@ -265,6 +265,26 @@ SelectableButton(const char* name, bool selected)
     return pressed;
 }
 
+struct Crossfade
+{
+    Crossfade() {}
+    AudioPlaying fade_out;
+    AudioPlaying fade_in;
+
+    Timepoint start;
+    Duration  duration = Seconds(0);
+};
+
+inline f32
+Clamp(f32 x, f32 min, f32 max)
+{
+    if (x > max)
+        return max;
+    if (x < min)
+        return min;
+    return x;
+}
+
 int
 main(int argc, char* argv[])
 {
@@ -329,6 +349,10 @@ main(int argc, char* argv[])
 
     std::vector<AudioBuffer> musics;
     AudioPlaying             music_playing;
+    Crossfade                crossfade;
+    s32                      gain_music = 50;
+    LoadSettingValue("music.gain_music", gain_music);
+    SCOPE_EXIT({ SaveSettingValue("music.gain_music", gain_music); });
 
     for (auto const& dir_entry :
          std::filesystem::directory_iterator{"data/musics/"})
@@ -455,10 +479,6 @@ main(int argc, char* argv[])
                                targets.command.send_sensor_data = show;
                            }));
 
-    s32 gain_music = 50;
-    LoadSettingValue("music.gain_music", gain_music);
-    SCOPE_EXIT({ SaveSettingValue("music.gain_music", gain_music); });
-
     auto time_start = Clock::now();
     glfwShowWindow(window);
     while (!glfwWindowShouldClose(window))
@@ -491,6 +511,25 @@ main(int argc, char* argv[])
         DrawConsole();
         DrawTimer(timer);
 
+        if (crossfade.duration != Seconds(0))
+        {
+            using MillisecondsFloat = std::chrono::duration<f32, std::milli>;
+            f32 elapsed = std::chrono::duration_cast<MillisecondsFloat>(
+                              Clock::now() - crossfade.start)
+                              .count();
+            f32 duration = std::chrono::duration_cast<MillisecondsFloat>(
+                               crossfade.duration)
+                               .count();
+            f32 t = Clamp(elapsed / duration, 0.f, 1.f);
+            SetGain(crossfade.fade_in, t * gain_music / 100.f);
+            SetGain(crossfade.fade_out, (1.f - t) * gain_music / 100.f);
+            if (t == 1.f)
+            {
+                crossfade.duration = Seconds(0);
+                StopAudio(crossfade.fade_out);
+            }
+        }
+
         UpdateAudio();
 
         if (listen_to_serial_ports)
@@ -516,7 +555,11 @@ main(int argc, char* argv[])
         {
             if (ImGui::SliderInt(utf8("Volume musique"), &gain_music, 0, 100))
             {
-                SetGain(music_playing, gain_music / 100.f);
+                if (crossfade.duration == Seconds(0))
+                {
+                    // Only set the music gain when we are not crossfading
+                    SetGain(music_playing, gain_music / 100.f);
+                }
             }
 
             for (auto& music : musics)
@@ -524,8 +567,25 @@ main(int argc, char* argv[])
                 if (ImGui::Button(
                         (const char*)music.path.filename().u8string().c_str()))
                 {
-                    StopAudio(music_playing);
-                    music_playing = PlayAudio(music, Gain(gain_music / 100.f));
+                    f32 gain = gain_music / 100.f;
+                    if (IsPlaying(music_playing))
+                    {
+                        if (crossfade.duration != Seconds(0))
+                        {
+                            // We were already crossfading
+                            StopAudio(crossfade.fade_out);
+                        }
+                        crossfade.start    = Clock::now();
+                        crossfade.duration = Seconds(1);
+                        crossfade.fade_out = music_playing;
+                        gain               = 0.f;
+                    }
+                    else
+                    {
+                        crossfade.duration = Seconds(0);
+                    }
+                    music_playing     = PlayAudio(music, Gain(gain));
+                    crossfade.fade_in = music_playing;
                 }
             }
             if (IsPlaying(music_playing))
@@ -533,6 +593,7 @@ main(int argc, char* argv[])
                 if (ImGui::Button(utf8("Arrêter la musique")))
                 {
                     StopAudio(music_playing);
+                    StopAudio(crossfade.fade_out);
                 }
             }
         }
