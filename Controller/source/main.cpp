@@ -455,32 +455,6 @@ main(int argc, char* argv[])
                                targets.command.send_sensor_data = show;
                            }));
 
-    // RegisterConsoleCommand(
-    //     "setthreshold", std::vector<StrPtr>{"u8 target", "u16 value"},
-    //     std::function([&](StrPtr args) {
-    //         u64 i = 0;
-    //         ReadAllSpaces(args, i);
-    //         u8 target;
-    //         if (!TryRead(args, i, target))
-    //             return;
-    //         ReadAllSpaces(args, i);
-    //         u16 value;
-    //         if (!TryRead(args, i, value))
-    //             return;
-
-    //        if (target > 0 && target <= target_count)
-    //        {
-    //            PrintSuccess("Target {} threshold set to {}\n", target,
-    //            value); targets.command.thresholds[target - 1] = value;
-    //        }
-    //        else
-    //        {
-    //            PrintWarning("Target {} is invalid (min {}, max {})\n",
-    //            target,
-    //                         1, target_count);
-    //        }
-    //    }));
-
     s32 gain_music = 50;
     LoadSettingValue("music.gain_music", gain_music);
     SCOPE_EXIT({ SaveSettingValue("music.gain_music", gain_music); });
