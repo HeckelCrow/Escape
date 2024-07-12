@@ -39,6 +39,14 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release"
       }
+    },
+    {
+      "name": "x64-release-with-debug",
+      "displayName": "x64 Release-with-debug",
+      "inherits": "x64-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+      }
     }
   ],
   "buildPresets": [
@@ -50,6 +58,11 @@
     {
       "name": "x64-release",
       "configurePreset": "x64-release",
+      "jobs": 3
+    },
+    {
+      "name": "x64-release-with-debug",
+      "configurePreset": "x64-release-with-debug",
       "jobs": 3
     }
   ]
