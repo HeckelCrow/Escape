@@ -22,7 +22,8 @@ Timer::Timer()
     for (auto const& dir_entry :
          std::filesystem::directory_iterator{"data/timer/"})
     {
-        if (dir_entry.is_regular_file())
+        if (dir_entry.is_regular_file()
+            && dir_entry.path().extension() != ".txt")
         {
             Print("Loading {}\n", dir_entry.path().string());
             sounds.push_back(LoadAudioFile(dir_entry.path()));
