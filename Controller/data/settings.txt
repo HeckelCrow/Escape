@@ -1,0 +1,10 @@
+timer.sound_gain 100
+targets.gain_global 100
+targets.gain_orcs_hurt 100
+targets.sound_probability 200
+timer.reminder_period 30
+timer.play_sound_auto true
+timer.sound_selected 1
+music.gain_music 100
+targets.gain_orcs 70
+targets.min_time_between_sounds 700
