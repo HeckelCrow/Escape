@@ -10,14 +10,14 @@
 #include <Windows.h>
 
 #define NO_CENUMERATESERIAL_USING_CREATEFILE
-#define NO_CENUMERATESERIAL_USING_QUERYDOSDEVICE
+// #define NO_CENUMERATESERIAL_USING_QUERYDOSDEVICE
 #define NO_CENUMERATESERIAL_USING_GETDEFAULTCOMMCONFIG
 #define NO_CENUMERATESERIAL_USING_SETUPAPI1
 #define NO_CENUMERATESERIAL_USING_SETUPAPI2
 #define NO_CENUMERATESERIAL_USING_ENUMPORTS
 #define NO_CENUMERATESERIAL_USING_WMI
 #define NO_CENUMERATESERIAL_USING_COMDB
-// #define NO_CENUMERATESERIAL_USING_REGISTRY
+#define NO_CENUMERATESERIAL_USING_REGISTRY
 #define NO_CENUMERATESERIAL_USING_GETCOMMPORTS
 #include "CEnumerateSerial/enumser.h"
 
@@ -27,7 +27,8 @@ struct SerialPort
     {
         history.emplace_back();
     }
-    Str   name;
+    // Str   name;
+    u32   name   = 0;
     void* handle = nullptr;
 
     std::vector<Str> history;
@@ -44,13 +45,13 @@ SerialPortManager serial_manager;
 void
 ListSerialPorts()
 {
-    CEnumerateSerial::CNamesArray ports;
-    if (CEnumerateSerial::UsingRegistry(ports))
+    CEnumerateSerial::CPortsArray ports;
+    if (CEnumerateSerial::UsingQueryDosDevice(ports))
     {
         PrintSuccess("Serial ports:\n");
         for (const auto& p : ports)
         {
-            Print("  >{}\n", StrPtr(p.data()));
+            Print("  >COM{}\n", p);
         }
     }
     else
@@ -60,12 +61,12 @@ ListSerialPorts()
 }
 
 SerialPort
-OpenSerialPort(Str com, u32 baud_rate)
+OpenSerialPort(u32 com, u32 baud_rate)
 {
     SerialPort serial = {};
 
     serial.name    = com;
-    auto full_name = fmt::format("\\\\.\\{}\\", com);
+    auto full_name = fmt::format("\\\\.\\COM{}\\", com);
     serial.handle = CreateFileA(full_name.c_str(), GENERIC_READ | GENERIC_WRITE,
                                 0, NULL, OPEN_EXISTING, 0, NULL);
     if (serial.handle == INVALID_HANDLE_VALUE)
@@ -204,7 +205,7 @@ TerminateSerial()
 void
 DrawSerial(SerialPort& port)
 {
-    if (!ImGui::BeginTabItem(port.name.c_str()))
+    if (!ImGui::BeginTabItem(fmt::format("COM{}", port.name).c_str()))
         return;
     // Reserve enough left-over height for 1 separator + 1 input text
     const float footer_height_to_reserve = ImGui::GetFrameHeightWithSpacing();
@@ -254,8 +255,8 @@ UpdateSerial(bool scan_ports)
 
     if (scan_ports)
     {
-        CEnumerateSerial::CNamesArray new_ports;
-        if (CEnumerateSerial::UsingRegistry(new_ports))
+        CEnumerateSerial::CPortsArray new_ports;
+        if (CEnumerateSerial::UsingQueryDosDevice(new_ports))
         {
             for (const auto& new_port_name : new_ports)
             {
@@ -270,7 +271,7 @@ UpdateSerial(bool scan_ports)
                 }
                 if (!found)
                 {
-                    PrintSuccess("New serial port {}\n", new_port_name.data());
+                    PrintSuccess("New serial port COM{}\n", new_port_name);
                     serial_manager.ports.push_back(
                         OpenSerialPort(new_port_name, 115200));
                 }
