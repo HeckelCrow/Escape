@@ -51,21 +51,24 @@ ReadBinaryFile(const Path& path)
     return data;
 }
 
-void
-WriteFile(const Path& path, StrPtr data)
+bool
+WriteFile(const WStr& path_16, StrPtr data, DWORD access, DWORD creation)
 {
-    WStr   path_16 = path.wstring();
-    HANDLE file = CreateFileW(path_16.c_str(), GENERIC_WRITE, FILE_SHARE_READ,
-                              NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    bool   success = false;
+    HANDLE file    = CreateFileW(path_16.c_str(), access, FILE_SHARE_READ, NULL,
+                                 creation, FILE_ATTRIBUTE_NORMAL, NULL);
     if (file != INVALID_HANDLE_VALUE)
     {
         SCOPE_EXIT({ CloseHandle(file); });
-        LARGE_INTEGER file_size;
 
         DWORD bytes_written;
         if (WriteFile(file, &data[0], data.size(), &bytes_written, NULL))
         {
-            if (bytes_written != data.size())
+            if (bytes_written == data.size())
+            {
+                success = true;
+            }
+            else
             {
                 PrintWarning(
                     "Couldn't write the whole file. Expected {} but read {}\n",
@@ -77,6 +80,23 @@ WriteFile(const Path& path, StrPtr data)
             PrintError("WriteFile failed (error: {})\n", GetLastError());
         }
     }
+    else
+    {
+        PrintError("CreateFileW failed (error: {})\n", GetLastError());
+    }
+    return success;
+}
+
+bool
+WriteFile(const Path& path, StrPtr data)
+{
+    return WriteFile(path.wstring(), data, GENERIC_WRITE, CREATE_ALWAYS);
+}
+
+bool
+AppendToFile(const Path& path, StrPtr data)
+{
+    return WriteFile(path.wstring(), data, FILE_APPEND_DATA, OPEN_ALWAYS);
 }
 
 Str

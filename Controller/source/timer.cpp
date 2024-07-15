@@ -1,6 +1,7 @@
 #include "timer.hpp"
 #include "print.hpp"
 #include "settings.hpp"
+#include "file_io.hpp"
 
 #include <imgui.h>
 
@@ -107,8 +108,16 @@ DrawTimer(Timer& timer)
         {
             auto ms      = timer.time.count() / 1000;
             auto sec     = ms / 1000 % 60;
-            auto minutes = ms / 1000 / 60;
-            PrintSuccess("Last time: {:02}:{:02}\n", minutes, sec);
+            auto minutes = ms / 1000 / 60 % 60;
+            auto hours   = ms / 1000 / 3600;
+            PrintSuccess("Last time: {:02}:{:02}:{:02}\n", hours, minutes, sec);
+
+            // Save time to file
+            Str csv_row =
+                fmt::format("{}; {:02}:{:02}:{:02}\n", SystemTimeToString(),
+                            hours, minutes, sec);
+            AppendToFile("data/temps.csv", csv_row);
+
             timer.time = Seconds(0);
         }
         ImGui::EndDisabled();
