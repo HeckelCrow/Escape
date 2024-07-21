@@ -528,6 +528,7 @@ main(int argc, char* argv[])
             {
                 crossfade.duration = Seconds(0);
                 StopAudio(crossfade.fade_out);
+                Print("Crossfade ended\n");
             }
         }
 
@@ -575,11 +576,13 @@ main(int argc, char* argv[])
                         {
                             // We were already crossfading
                             StopAudio(crossfade.fade_out);
+                            Print("Crossfade stopped\n");
                         }
                         crossfade.start    = Clock::now();
                         crossfade.duration = Seconds(1);
                         crossfade.fade_out = music_playing;
                         gain               = 0.f;
+                        Print("Crossfade start\n");
                     }
                     else
                     {

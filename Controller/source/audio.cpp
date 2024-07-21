@@ -298,6 +298,9 @@ PlayAudio(const AudioBuffer& buffer, AudioSettings s)
     audio.source_playing_count =
         std::max(audio.source_playing_count, playing.source_index + 1);
 
+    alSourcef(source.al_source, AL_GAIN, s.gain * s.gain);
+    alSourcef(source.al_source, AL_PITCH, s.pitch);
+
     source.streaming = buffer.streaming;
     if (buffer.streaming)
     {
@@ -306,15 +309,15 @@ PlayAudio(const AudioBuffer& buffer, AudioSettings s)
     else
     {
         alSourcei(source.al_source, AL_BUFFER, (ALint)buffer.al_buffer);
-        alSourcef(source.al_source, AL_GAIN, s.gain * s.gain);
-        alSourcef(source.al_source, AL_PITCH, s.pitch);
+
         alSourcePlay(source.al_source);
     }
 
     source.should_stop = false;
 
-    Print("Playing {} on source {} (id {})\n", buffer.path.filename().string(),
-          source.al_source, playing.playing_id);
+    Print("Playing {} on source {} (id {}) gain = {}, pitch = {}\n",
+          buffer.path.filename().string(), source.al_source, playing.playing_id,
+          s.gain, s.pitch);
 
     return playing;
 }
@@ -366,6 +369,8 @@ SetGain(AudioPlaying playing, f32 gain)
     auto& source = audio.sources[playing.source_index];
     if (source.playing_id == playing.playing_id)
     {
+        Print("Set source {} (id {}) gain to {}\n", source.al_source,
+              playing.playing_id, gain);
         alSourcef(source.al_source, AL_GAIN, gain * gain);
     }
 }
