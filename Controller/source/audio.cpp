@@ -306,7 +306,7 @@ PlayAudio(const AudioBuffer& buffer, AudioSettings s)
     else
     {
         alSourcei(source.al_source, AL_BUFFER, (ALint)buffer.al_buffer);
-        alSourcef(source.al_source, AL_GAIN, s.gain);
+        alSourcef(source.al_source, AL_GAIN, s.gain * s.gain);
         alSourcef(source.al_source, AL_PITCH, s.pitch);
         alSourcePlay(source.al_source);
     }
@@ -366,9 +366,7 @@ SetGain(AudioPlaying playing, f32 gain)
     auto& source = audio.sources[playing.source_index];
     if (source.playing_id == playing.playing_id)
     {
-        gain = gain * gain;
-
-        alSourcef(source.al_source, AL_GAIN, gain);
+        alSourcef(source.al_source, AL_GAIN, gain * gain);
     }
 }
 
