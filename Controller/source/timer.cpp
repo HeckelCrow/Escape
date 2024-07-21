@@ -14,6 +14,26 @@ DivideAndRoundDown(s64 numerator, s64 denominator)
     }
     return numerator / denominator;
 }
+
+void
+SaveTimeToFile(u64 ms)
+{
+    constexpr StrPtr path = "data/temps.csv";
+
+    // Discard 0 second times
+    if (ms == 0)
+        return;
+
+    auto sec     = ms / 1000 % 60;
+    auto minutes = ms / 1000 / 60 % 60;
+    auto hours   = ms / 1000 / 3600;
+    PrintSuccess("Last time: {:02}:{:02}:{:02}\n", hours, minutes, sec);
+
+    Str csv_row = fmt::format("{}; {:02}:{:02}:{:02}\n", SystemTimeToString(),
+                              hours, minutes, sec);
+    AppendToFile(path, csv_row);
+}
+
 Timer::Timer()
 {
     last_measure = Clock::now();
@@ -50,6 +70,7 @@ Timer::~Timer()
     SaveSettingValue("timer.play_sound_auto", play_sound_auto);
     SaveSettingValue("timer.sound_selected", sound_selected);
     SaveSettingValue("timer.sound_gain", sound_gain);
+    SaveTimeToFile(time.count() / 1000);
 }
 
 void
@@ -107,18 +128,7 @@ DrawTimer(Timer& timer)
         ImGui::BeginDisabled(!timer.paused);
         if (ImGui::Button(utf8("Remise à zero")))
         {
-            auto ms      = timer.time.count() / 1000;
-            auto sec     = ms / 1000 % 60;
-            auto minutes = ms / 1000 / 60 % 60;
-            auto hours   = ms / 1000 / 3600;
-            PrintSuccess("Last time: {:02}:{:02}:{:02}\n", hours, minutes, sec);
-
-            // Save time to file
-            Str csv_row =
-                fmt::format("{}; {:02}:{:02}:{:02}\n", SystemTimeToString(),
-                            hours, minutes, sec);
-            AppendToFile("data/temps.csv", csv_row);
-
+            SaveTimeToFile(timer.time.count() / 1000);
             timer.time = Seconds(0);
         }
         ImGui::EndDisabled();
