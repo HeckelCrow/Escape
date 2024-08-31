@@ -295,7 +295,7 @@ UpdateSerial(bool scan_ports)
                 u64 new_line = std::string::npos;
                 while (true)
                 {
-                    new_line = read.find_first_of(start, '\n');
+                    new_line = read.find_first_of('\n', start);
                     if (new_line == std::string::npos)
                     {
                         port.history.back().append(StrPtr(read).substr(start));
