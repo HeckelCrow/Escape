@@ -33,7 +33,7 @@ DrawLock(const char* name, LockState& cmd, const LockState status)
 {
     ImGui::PushID(name);
     SCOPE_EXIT({ ImGui::PopID(); });
-    if (SelectableButton(utf8("DÈverrouiller"), cmd == LockState::Open))
+    if (SelectableButton(utf8("D√©verrouiller"), cmd == LockState::Open))
     {
         cmd = LockState::Open;
     }
@@ -56,7 +56,7 @@ DrawLock(const char* name, LockState& cmd, const LockState status)
 
     if (status == LockState::Open)
     {
-        ImGui::TextColored(color, utf8("> DÈverrouillÈe"));
+        // ImGui::TextColored(color, utf8("> D√©verrouill√©e"));
     }
     else if (status == LockState::SoftLock)
     {
@@ -64,7 +64,7 @@ DrawLock(const char* name, LockState& cmd, const LockState status)
     }
     else if (status == LockState::Locked)
     {
-        ImGui::TextColored(color, utf8("> VerrouillÈe"));
+        ImGui::TextColored(color, utf8("> Verrouill√©e"));
     }
     else
     {
@@ -78,7 +78,7 @@ DrawLatchLock(LatchLockState& cmd, const LatchLockState status,
 {
     ImGui::BeginDisabled(tree_open_duration
                          && tree_open_duration < latchlock_timeout_retry);
-    if (ImGui::Button(utf8("…jecter")))
+    if (ImGui::Button(utf8("√âjecter")))
     {
         cmd = LatchLockState::ForceOpen;
     }
@@ -108,7 +108,7 @@ DrawLatchLock(LatchLockState& cmd, const LatchLockState status,
     }
     else
     {
-        ImGui::TextColored(color, utf8("> …jectÈe"));
+        ImGui::TextColored(color, utf8("> √âject√©e"));
     }
 }
 
@@ -120,19 +120,19 @@ DoorLock::update(Client& client)
     // send some useless data because of that. It was easier to hide the
     // controls instead of really removing things.
 
-    // if (ImGui::Begin(utf8("Serrures magnÈtiques")))
+    // if (ImGui::Begin(utf8("Serrures magn√©tiques")))
     if (ImGui::Begin(utf8("Porte Hobbit")))
     {
-        // ImGui::Text(utf8("Serrures magnÈtiques"));
+        // ImGui::Text(utf8("Serrures magn√©tiques"));
         ImGui::Text(utf8("Porte Hobbit"));
         ImGui::SameLine();
         if (client.connected)
         {
-            ImGui::TextColored({0.1f, 0.9f, 0.1f, 1.f}, utf8("(ConnectÈ)"));
+            ImGui::TextColored({0.1f, 0.9f, 0.1f, 1.f}, utf8("(Connect√©)"));
         }
         else
         {
-            ImGui::TextColored({0.9f, 0.1f, 0.1f, 1.f}, utf8("(DÈconnectÈ)"));
+            ImGui::TextColored({0.9f, 0.1f, 0.1f, 1.f}, utf8("(D√©connect√©)"));
         }
         ImGui::Separator();
 

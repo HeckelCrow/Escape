@@ -1,4 +1,4 @@
-#include "targets.hpp"
+ï»¿#include "targets.hpp"
 #include "print.hpp"
 #include "scope_exit.hpp"
 #include "random.hpp"
@@ -200,11 +200,11 @@ Targets::update(Client& client)
         ImGui::SameLine();
         if (client.connected)
         {
-            ImGui::TextColored({0.1f, 0.9f, 0.1f, 1.f}, utf8("(Connecté)"));
+            ImGui::TextColored({0.1f, 0.9f, 0.1f, 1.f}, utf8("(ConnectÃ©)"));
         }
         else
         {
-            ImGui::TextColored({0.9f, 0.1f, 0.1f, 1.f}, utf8("(Déconnecté)"));
+            ImGui::TextColored({0.9f, 0.1f, 0.1f, 1.f}, utf8("(DÃ©connectÃ©)"));
         }
 
         bool enable = (command.enable != 0);
@@ -230,7 +230,7 @@ Targets::update(Client& client)
         ImGui::Separator();
 
         ImGui::Text(utf8("Porte Mordor"));
-        if (SelectableButton(utf8("Ouvrir à la mort des orques"),
+        if (SelectableButton(utf8("Ouvrir Ã  la mort des orques"),
                              command.door_state
                                  == TargetsDoorState::OpenWhenTargetsAreDead))
         {
@@ -256,7 +256,7 @@ Targets::update(Client& client)
 
         if (last_status.door_state == TargetsDoorState::OpenWhenTargetsAreDead)
         {
-            ImGui::TextColored(color, utf8("> Ouvrir à la mort des orques"));
+            ImGui::TextColored(color, utf8("> Ouvrir Ã  la mort des orques"));
         }
         else if (last_status.door_state == TargetsDoorState::Open)
         {
@@ -272,10 +272,10 @@ Targets::update(Client& client)
         }
         ImGui::Separator();
 
-        ImGui::Text(utf8("Réglages"));
-        ImGui::SliderInt(utf8("Volume général"), &gain_global, 0, 100);
+        ImGui::Text(utf8("RÃ©glages"));
+        ImGui::SliderInt(utf8("Volume gÃ©nÃ©ral"), &gain_global, 0, 100);
         ImGui::SliderInt(utf8("Volume bruits d'orque"), &gain_orcs, 0, 100);
-        ImGui::SliderInt(utf8("Volume orques blessés/mort"), &gain_orcs_hurt, 0,
+        ImGui::SliderInt(utf8("Volume orques blessÃ©s/mort"), &gain_orcs_hurt, 0,
                          100);
         ImGui::Separator();
         ImGui::SliderInt(utf8("Temps mini entre cris (ms)"),
@@ -288,8 +288,8 @@ Targets::update(Client& client)
             if (gain_global == 0)
             {
                 ImGui::TextColored({0.9f, 0.45f, 0.1f, 1.f},
-                                   utf8("Les boutons sont désactivés parce que "
-                                        "le volume général est à 0"));
+                                   utf8("Les boutons sont dÃ©sactivÃ©s parce que "
+                                        "le volume gÃ©nÃ©ral est Ã  0"));
             }
             else
             {
@@ -297,15 +297,15 @@ Targets::update(Client& client)
                 {
                     ImGui::TextColored(
                         {0.9f, 0.45f, 0.1f, 1.f},
-                        utf8("Certains boutons sont désactivés parce que "
-                             "le volume de bruits d'orque est à 0"));
+                        utf8("Certains boutons sont dÃ©sactivÃ©s parce que "
+                             "le volume de bruits d'orque est Ã  0"));
                 }
                 if (gain_orcs_hurt == 0)
                 {
                     ImGui::TextColored(
                         {0.9f, 0.45f, 0.1f, 1.f},
-                        utf8("Certains boutons sont désactivés parce que "
-                             "le volume d'orques blessés/mort est à 0"));
+                        utf8("Certains boutons sont dÃ©sactivÃ©s parce que "
+                             "le volume d'orques blessÃ©s/mort est Ã  0"));
                 }
             }
 
@@ -321,7 +321,7 @@ Targets::update(Client& client)
             ImGui::EndDisabled();
 
             ImGui::BeginDisabled(gain_orcs_hurt == 0 || gain_global == 0);
-            if (ImGui::Button(utf8("Orque blessé!")))
+            if (ImGui::Button(utf8("Orque blessÃ©!")))
             {
                 u32  rand_index = Random(orc_hurts.size() - 1);
                 auto player     = PlayAudio(
@@ -332,7 +332,7 @@ Targets::update(Client& client)
             ImGui::EndDisabled();
 
             ImGui::BeginDisabled(gain_orcs == 0 || gain_global == 0);
-            if (ImGui::Button(utf8("Orque enervé!")))
+            if (ImGui::Button(utf8("Orque enervÃ©!")))
             {
                 u32  rand_index = Random(orc_mads.size() - 1);
                 auto player     = PlayAudio(

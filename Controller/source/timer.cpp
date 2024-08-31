@@ -1,4 +1,4 @@
-#include "timer.hpp"
+ï»¿#include "timer.hpp"
 #include "print.hpp"
 #include "settings.hpp"
 #include "file_io.hpp"
@@ -126,7 +126,7 @@ DrawTimer(Timer& timer)
         ImGui::EndDisabled();
 
         ImGui::BeginDisabled(!timer.paused);
-        if (ImGui::Button(utf8("Remise à zero")))
+        if (ImGui::Button(utf8("Remise Ã  zero")))
         {
             SaveTimeToFile(timer.time.count() / 1000);
             timer.time = Seconds(0);
@@ -137,8 +137,8 @@ DrawTimer(Timer& timer)
         {
             if (ImGui::BeginTooltip())
             {
-                ImGui::Text(utf8("Le bouton de remise à zero est désactivé "
-                                 "lorsque le chrono est lancé pour éviter de "
+                ImGui::Text(utf8("Le bouton de remise Ã  zero est dÃ©sactivÃ© "
+                                 "lorsque le chrono est lancÃ© pour Ã©viter de "
                                  "cliquer dessus par erreur."));
                 ImGui::EndTooltip();
             }
@@ -162,7 +162,7 @@ DrawTimer(Timer& timer)
         }
         if (IsPlaying(timer.playing))
         {
-            if (ImGui::Button(utf8("Arrêter le rappel")))
+            if (ImGui::Button(utf8("ArrÃªter le rappel")))
             {
                 StopAudio(timer.playing);
             }

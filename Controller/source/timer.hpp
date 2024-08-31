@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 #include "alias.hpp"
 #include "time.hpp"
 #include "audio.hpp"
@@ -42,12 +42,12 @@
 //             if (client.connected)
 //             {
 //                 ImGui::TextColored({0.1f, 0.9f, 0.1f, 1.f},
-//                 utf8("(Connecté)"));
+//                 utf8("(ConnectÃ©)"));
 //             }
 //             else
 //             {
 //                 ImGui::TextColored({0.9f, 0.1f, 0.1f, 1.f},
-//                                    utf8("(Déconnecté)"));
+//                                    utf8("(DÃ©connectÃ©)"));
 //             }
 //             s32  minutes          = command.time_left / 1000 / 60;
 //             s32  seconds          = command.time_left / 1000 % 60;

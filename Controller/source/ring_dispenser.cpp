@@ -1,4 +1,4 @@
-#include "ring_dispenser.hpp"
+Ôªø#include "ring_dispenser.hpp"
 #include "print.hpp"
 #include "server.hpp"
 
@@ -9,8 +9,8 @@ bool SelectableButton(const char* name, bool selected);
 void
 DrawRing(Vec2f pos, Vec2f size, bool detected, bool enabled)
 {
-    constexpr auto col_on           = ImColor(ImVec4(0.3f, 1.f, 0.3f, 1.0f));
-    constexpr auto col_off          = ImColor(ImVec4(1.0f, 0.2f, 0.1f, 1.0f));
+    constexpr auto col_on       = ImColor(ImVec4(0.3f, 1.f, 0.3f, 1.0f));
+    constexpr auto col_off      = ImColor(ImVec4(1.0f, 0.2f, 0.1f, 1.0f));
     constexpr auto col_disabled = ImColor(ImVec4(0.5f, 0.5f, 0.5f, 1.0f));
 
     auto color = col_disabled;
@@ -80,19 +80,19 @@ RingDispenser::update(Client& client)
         ImGui::SameLine();
         if (client.connected)
         {
-            ImGui::TextColored({0.1f, 0.9f, 0.1f, 1.f}, utf8("(ConnectÈ)"));
+            ImGui::TextColored({0.1f, 0.9f, 0.1f, 1.f}, utf8("(Connect√©)"));
         }
         else
         {
-            ImGui::TextColored({0.9f, 0.1f, 0.1f, 1.f}, utf8("(DÈconnectÈ)"));
+            ImGui::TextColored({0.9f, 0.1f, 0.1f, 1.f}, utf8("(D√©connect√©)"));
         }
 
-        if (SelectableButton(utf8("DÈtecter les anneaux"),
+        if (SelectableButton(utf8("D√©tecter les anneaux"),
                              command.state == RingDispenserState::DetectRings))
         {
             command.state = RingDispenserState::DetectRings;
         }
-        if (SelectableButton(utf8("LibÈrer"),
+        if (SelectableButton(utf8("Lib√©rer"),
                              command.state
                                  == RingDispenserState::ForceActivate))
         {
@@ -114,11 +114,11 @@ RingDispenser::update(Client& client)
 
         if (last_status.state == RingDispenserState::DetectRings)
         {
-            ImGui::TextColored(color, utf8("> DÈtecter les anneaux"));
+            ImGui::TextColored(color, utf8("> D√©tecter les anneaux"));
         }
         else if (last_status.state == RingDispenserState::ForceActivate)
         {
-            ImGui::TextColored(color, utf8("> LibÈrer"));
+            ImGui::TextColored(color, utf8("> Lib√©rer"));
         }
         else if (last_status.state == RingDispenserState::ForceDeactivate)
         {
